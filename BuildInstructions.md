@@ -1,19 +1,5 @@
-Instructions for building dc42 fork of RepRapFirmware
-=====================================================
-
-**Important!**
-
-1. RepRapFirmware is built from several Github projects. You need to use compatible branches of these projects. As at October 2018, development uses these branches:
-
-- ReprapFirmware: v2-dev
-- CoreNG: main
-- FreeRTOS: main
-- RRFLibraries: main
-- DuetWiFiSocketServer: dev
-
-2. Only the RTOS configurations of RepRapFirmware are supported by the latest sources. Therefore, the Duet085 and Alligator builds of RepRapFirmware cannot be built. The non-RTOS builds of CoreNG are maintained for use by the DuetIAP project.
-
-**Instructions for building under Windows**
+Instructions for building dc42 fork of RepRapFirmware under Windows
+===================================================================
 
 1. Download and install the gcc cross-compiler:
 
@@ -25,31 +11,26 @@ Instructions for building dc42 fork of RepRapFirmware
 
 2. Download and install Eclipse Oxygen for C/C++ Developers, from http://www.eclipse.org/downloads/eclipse-packages/. You do not need the Arduino add-on.
 
-3. Download and install GNU Arm Eclipse from https://sourceforge.net/projects/gnuarmeclipse/files/Build%20Tools/gnuarmeclipse-build-tools-win64-2.6-201507152002-setup.exe/download. This provides versions of make.exe, rm.exe and other tools without the 8192-character command line limitation of some other versions.
+3. In Eclipse create new workspace C:/Eclipse/Firmware. Then exit Eclipse.
 
-4. Modify your PATH environment variable to include the 'bin' folder of the GNU AREM Eclipse installation.
+4. Download this github project as a zip file and unzip it into C:/Eclipse/Firmware. Then rename folder ReprapFirmware-dev in that folder to RepRapFirmware.
 
-5. Run "which rm" and "which make" to maks sure that rm and make will be fetched from that folder.
+5. Repeat for github project CoreNG. The folder name should be left as CoreNG (or renamed from CoreNG-dev to CoreNG if you downloaded a dev build).
 
-6. In Eclipse create new workspace C:/Eclipse/Firmware. Then exit Eclipse.
+5a. If you want to build version 1.19 or later of the Duet WiFi build of RepRapFirmware then you also need to download and add project DuetWiFiSocketServer. Alternatively, just download file src/include/MessageFormats.h from that project and put it somewhere on the include path for RepRapFirmware.
 
-7. Download this github project as a zip file and unzip it into C:/Eclipse/Firmware. Then rename folder ReprapFirmware-dev in that folder to RepRapFirmware.
+5b. If you want to build a RTOS-enabled configuration of the v2-dev branch, also download and project FreeRTOS from my github repo and add that project to the workspace.
 
-8. Repeat the previous step for github project CoreNG. The folder name should be left as CoreNG (or renamed from CoreNG-dev to CoreNG if you downloaded a dev build).
+6. Load Eclipse and tell it to import the CoreNG and ReprapFirmware projects (and DuetWiFiSocketServer if you have included it).
 
-9. If you want to build version 1.19 or later of the Duet WiFi build of RepRapFirmware then you also need to download and add project DuetWiFiSocketServer. Alternatively, just download file src/include/MessageFormats.h from that project and put it somewhere on the include path for RepRapFirmware.
+7. If your compiler and tools are in a folder other than C:\Program Files (x86)\GNU Tools ARM Embedded\6 2017-q2-update\bin (if building 1.20alpha3 or later) or C:\Arduino-1.5.8\hardware\tools\gcc-arm-none-eabi-4.8.3-2014q1\bin (if building earlier versions), configure the path to the tools in both projects. You will find this in the project settings under C/C++ Build -> Settings -> Cross Settings.
 
-10. If you want to build a RTOS-enabled configuration of the v2-dev branch, also download project FreeRTOS from my github repo and add that project to the workspace.
+8. Ensure there is a copy of make.exe on your PATH. If you installed Arduino 1.5.8 into C:/Arduino-1.5.8 then there will be one in C:\Arduino-1.5.8\hardware\arduino\sam\system\CMSIS\Examples\cmsis_example\gcc_arm.
 
-11. If you want to buid firmware versions later than 2.02RC1, also download and project RRFLibraries from my github repo and add that project to the workspace.
+9. Build CoreNG first, then build FreeRTOS if needed. Then clean and build RepRapFirmware (the clean step is needed to make Eclipse notice that the CoreNG library has been built). The Duet WiFi and Duet Ethernet builds of RRF use the SAM4E build of CoreNG. The Duet085 build of RRF (which also runs on the Duet06) uses the SAM3X build of CoreNG. The RADDS and Alligator builds of RRF have their own builds of CoreNG.
 
-12. Load Eclipse and tell it to import the CoreNG and RepRapFirmware projects (and DuetWiFiSocketServer and RRFLibraries if you have included them).
-
-13. If your compiler and tools are in a folder other than C:\Program Files (x86)\GNU Tools ARM Embedded\6 2017-q2-update\bin (if building 1.20alpha3 or later) or C:\Arduino-1.5.8\hardware\tools\gcc-arm-none-eabi-4.8.3-2014q1\bin (if building earlier versions), configure the path to the tools in both projects by changing the GccPath build variable.
-
-14. Build CoreNG first, also build FreeRTOS and RRFLibraries if needed. Then clean and build RepRapFirmware (the clean step is needed to make Eclipse notice that the output library files in the other projects have been built). The Duet WiFi and Duet Ethernet builds of RRF use the SAM4E_RTOS builds of CoreNG and RRFLibraries and the SAM4E build of FreeRTOS. The Duet Maestro uses the SAM4S_RTOS build of CoreNG and RRFLibraries, and the SAM4S build of FreeRTOS. The Duet085 build of RRF (which also runs on the Duet06) uses the SAM3X build of CoreNG. The RADDS and Alligator builds of RRF have their own builds of CoreNG.
-
-**Instructions for building under macOS**
+Instructions for building dc42 fork of RepRapFirmware under macOS
+=================================================================
 
 Using Homebrew-Cask makes it very easy to install new software on macOS: https://caskroom.github.io/
 
@@ -57,12 +38,12 @@ Using Homebrew-Cask makes it very easy to install new software on macOS: https:/
 
 3. Download and install Eclipse for C++ : brew cask install eclipse-cpp
 
-4. Download or clone the RepRapFirmware, CoreNG, FreeRTOS, RRFLibraries and DuetWiFiSocketServer projects into your workspace. Keep the folder names as is.
+4. Download or clone the RepRapFirmware, CoreNG, FreeRTOS and DuetWiFiSocketServer projects into your workspace. Keep the folder names as is.
 
-5. Open Eclipse and import RepRapFirmware, FreeRTOS, RRFLibraries and CoreNG projects.
+5. Open Eclipse and import RepRapFirmware, FreeRTOS and CoreNG projects.
 
 6. Right click "RepRapFirmware" project and select Properties. Go To "C/C++ Build -> Settings" and change the path: /usr/local/bin/ (or some other other path where arm-none-eabi-g++ and other binaries are located)
 
 7. Do the same for CoreNG project.
 
-8. Build CoreNG, FreeRTOS and RRFLibraries first, then RepRapFirmware. See the instructionas for Windows (above) for the configurations needed.
+8. Build CoreNG and FreeRTOS first, then RepRapFirmware. The Duet WiFi and Duet Ethernet builds of RRF use the SAM4E build of CoreNG. The Duet085 build of RRF (which also runs on the Duet06) uses the SAM3X build of CoreNG. The RADDS build of RRF has its own build of CoreNG.
