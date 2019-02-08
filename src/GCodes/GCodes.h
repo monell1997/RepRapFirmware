@@ -289,6 +289,8 @@ private:
 	void InitialiseTaps();														// Set up to do the first of a possibly multi-tap probe
 	void SetBedEquationWithProbe(int sParam, const StringRef& reply);			// Probes a series of points and sets the bed equation
 	GCodeResult SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply);		// Either return the probe value, or set its threshold
+	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
+	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
@@ -578,6 +580,10 @@ private:
 	// Laser
 	float laserMaxPower;
 
+	// BCN3D XY Calibration Alejandro Garcia 06/02/2019
+	int xy_Bcn3dCalib_Samples_Count = 0;						// Must count 4
+	float xy_Bcn3dCalib_SaveMotorStepPos[4]; 	// Save 2 coordinates
+
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
 	uint32_t heaterFaultTime;					// when the heater fault occurred
@@ -586,6 +592,7 @@ private:
 	// Misc
 	uint32_t lastWarningMillis;					// When we last sent a warning message for things that can happen very often
 	AxesBitmap axesToSenseLength;				// The axes on which we are performing axis length sensing
+	bool axesToSenseLength_flag = false;		// Set the flag for sensing positioning BCN3D 07/02/2019
 
 	static constexpr uint32_t SdTimingByteIncrement = 8 * 1024;	// how many timing bytes we write at a time
 	static constexpr const char *TimingFileName = "test.tst";	// the name of the file we write
@@ -620,6 +627,8 @@ private:
 	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
 	static constexpr const char* PEEL_MOVE_G = "peel-move.g";
+	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
+	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
 #if HAS_SMART_DRIVERS
 	static constexpr const char* REHOME_G = "rehome.g";
 #endif

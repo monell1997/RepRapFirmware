@@ -278,6 +278,54 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		DoFileMacro(gb, BED_EQUATION_G, true);	// Try to execute bed.g
 		break;
 
+	case 33: //Set the current Z Position as the Z-probe offset
+
+		result = SetPrintZprobe_Zoffset_BCN3D(gb, reply);
+
+		break;
+
+	case 34: //Auto XY calib BCN3D
+
+		result = FindXYOffet_BCN3D(gb, reply);
+
+		break;
+	case 35: //Auto XY calib BCN3D
+
+		if (gb.Seen(axisLetters[X_AXIS]))
+		{
+			//Save Value
+
+			platform.MessageF(GenericMessage, "X position triggered is %0.2f \n",(double) currentUserPosition[X_AXIS]);
+
+			xy_Bcn3dCalib_SaveMotorStepPos[xy_Bcn3dCalib_Samples_Count]=currentUserPosition[X_AXIS];
+
+			xy_Bcn3dCalib_Samples_Count++;
+			if(xy_Bcn3dCalib_Samples_Count == 4){
+			    xy_Bcn3dCalib_Samples_Count = 0;
+				gb.SetState(GCodeState::x_calib_bcn3d);
+			}
+
+
+		}else if (gb.Seen(axisLetters[Y_AXIS]))
+		{
+			//Save Value
+			platform.MessageF(GenericMessage, "Y position triggered is %0.2f \n",(double) currentUserPosition[Y_AXIS]);
+
+			xy_Bcn3dCalib_SaveMotorStepPos[xy_Bcn3dCalib_Samples_Count]=currentUserPosition[Y_AXIS];
+
+			if(xy_Bcn3dCalib_Samples_Count == 4){
+				xy_Bcn3dCalib_Samples_Count = 0;
+				gb.SetState(GCodeState::y_calib_bcn3d);
+			}
+
+		}else{
+			reply.copy("Not X or Y axes has been selected");
+			result =  GCodeResult::error;
+		}
+
+
+		break;
+
 #if SUPPORT_WORKPLACE_COORDINATES
 	case 53:	// Temporarily use machine coordinates
 		gb.MachineState().useMachineCoordinates = true;

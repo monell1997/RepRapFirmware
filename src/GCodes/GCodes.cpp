@@ -455,14 +455,21 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 					EndStopPosition stopType;
 					EndStopInputType dummy;
 					platform.GetEndStopConfiguration(axis, stopType, dummy);
-					if (stopType == EndStopPosition::highEndStop)
-					{
-						platform.SetAxisMaximum(axis, moveBuffer.coords[axis], true);
+					if(axesToSenseLength_flag == false){
+						if (stopType == EndStopPosition::highEndStop)
+						{
+							platform.SetAxisMaximum(axis, moveBuffer.coords[axis], true);
+						}
+						else if (stopType == EndStopPosition::lowEndStop)
+						{
+							platform.SetAxisMinimum(axis, moveBuffer.coords[axis], true);
+						}
+
+					}else{
+						axesToSenseLength_flag = false;
 					}
-					else if (stopType == EndStopPosition::lowEndStop)
-					{
-						platform.SetAxisMinimum(axis, moveBuffer.coords[axis], true);
-					}
+
+
 				}
 			}
 
@@ -575,6 +582,61 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			}
 		}
 		break;
+
+	case GCodeState::x_calib_bcn3d:
+		if (LockMovementAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for the previous homing move to complete
+		{
+
+
+			float left_nozzle_position = 0;
+			float right_nozzle_position = 305;
+
+			//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
+			//xy_Bcn3dCalib_SaveMotorStepPos[0] = 160.65;
+			//xy_Bcn3dCalib_SaveMotorStepPos[1] = 158.78;
+
+			left_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[1]+(xy_Bcn3dCalib_SaveMotorStepPos[0]-xy_Bcn3dCalib_SaveMotorStepPos[1])/2.0; // 0 is the further coordinate, 1 is the closer
+
+			//Step 2 Calculate RIGHT AXIS POSITION of CALIB-OBJECT
+			//xy_Bcn3dCalib_SaveMotorStepPos[2] = 162.35;
+			//xy_Bcn3dCalib_SaveMotorStepPos[3] = 155.19;
+			right_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[3]+(xy_Bcn3dCalib_SaveMotorStepPos[2]-xy_Bcn3dCalib_SaveMotorStepPos[3])/2.0; // 0 is the further coordinate, 1 is the closer
+
+			float offset_xy_bcn3d = right_nozzle_position - left_nozzle_position;
+
+
+			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[X_AXIS],(double) offset_xy_bcn3d);
+
+			gb.SetState(GCodeState::normal);
+		}
+		break;
+
+	case GCodeState::y_calib_bcn3d:
+		if (LockMovementAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for the previous homing move to complete
+		{
+
+			float left_nozzle_position = 0;
+			float right_nozzle_position = 305;
+
+			//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
+			//xy_Bcn3dCalib_SaveMotorStepPos[0] = 160.65;
+			//xy_Bcn3dCalib_SaveMotorStepPos[1] = 158.78;
+
+			left_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[1]+(xy_Bcn3dCalib_SaveMotorStepPos[0]-xy_Bcn3dCalib_SaveMotorStepPos[1])/2.0; // 0 is the further coordinate, 1 is the closer
+
+			//Step 2 Calculate RIGHT AXIS POSITION of CALIB-OBJECT
+			//xy_Bcn3dCalib_SaveMotorStepPos[2] = 162.35;
+			//xy_Bcn3dCalib_SaveMotorStepPos[3] = 155.19;
+			right_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[3]+(xy_Bcn3dCalib_SaveMotorStepPos[2]-xy_Bcn3dCalib_SaveMotorStepPos[3])/2.0; // 0 is the further coordinate, 1 is the closer
+
+			float offset_xy_bcn3d = right_nozzle_position - left_nozzle_position;
+
+			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[Y_AXIS],(double) offset_xy_bcn3d);
+
+			gb.SetState(GCodeState::normal);
+		}
+		break;
+
 
 	case GCodeState::toolChange0: 		// Run tfree for the old tool (if any)
 	case GCodeState::m109ToolChange0:	// Run tfree for the old tool (if any)
@@ -2436,7 +2498,7 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 	if (gb.Seen('H') || (machineType != MachineType::laser && gb.Seen('S')))
 	{
 		const int ival = gb.GetIValue();
-		if (ival >= 1 && ival <= 3)
+		if (ival >= 1 && ival <= 4)
 		{
 			moveBuffer.moveType = ival;
 			moveBuffer.xAxes = DefaultXAxisMapping;
@@ -2570,12 +2632,16 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			return "G0/G1: insufficient axes homed";
 		}
 	}
-	else if (moveBuffer.moveType == 1 || moveBuffer.moveType == 3)
+	else if (moveBuffer.moveType == 1 || moveBuffer.moveType == 3 || moveBuffer.moveType == 4)
 	{
 		moveBuffer.endStopsToCheck |= (axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes));
 		if (moveBuffer.moveType == 1)
 		{
 			moveBuffer.endStopsToCheck |= HomeAxes;
+		}else if(moveBuffer.moveType == 4){
+
+			axesToSenseLength_flag = true;
+			axesToSenseLength = moveBuffer.endStopsToCheck;
 		}
 		else
 		{

@@ -118,7 +118,55 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 	}
 	return GCodeResult::ok;
 }
+//Deal with G33
+GCodeResult GCodes::SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
+{
 
+	ZProbeType probeType;
+
+	probeType = platform.GetZProbeType();
+
+	ZProbe params = platform.GetZProbeParameters(probeType);
+
+	params.triggerHeight = params.triggerHeight - currentUserPosition[Z_AXIS];
+	platform.SetZProbeParameters(probeType, params);
+	reply.printf("The new trigger height is %.2f",(double)params.triggerHeight);
+
+	return GCodeResult::ok;
+
+}
+//Deal with G34
+GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
+{
+	uint8_t tool = 0;
+	xy_Bcn3dCalib_Samples_Count = 0;
+	if (gb.Seen(axisLetters[X_AXIS]))
+	{
+		tool = X_AXIS;
+		platform.MessageF(GenericMessage, "Go X calib \n");
+
+	}else if(gb.Seen(axisLetters[Y_AXIS])){
+		tool = Y_AXIS;
+		platform.MessageF(GenericMessage, "Go Y calib \n");
+	}else{
+		reply.copy("Not X or Y axes has been selected");
+		return GCodeResult::error;
+	}
+
+
+
+	if(CheckEnoughAxesHomed(0x07)){
+		reply.copy("Not enough axes homed");
+		return GCodeResult::error;
+	}
+
+	//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
+
+	DoFileMacro(*fileGCode, tool == X_AXIS ? X_BCN3D_CALIB_G : Y_BCN3D_CALIB_G, true, 98);
+
+	return GCodeResult::ok;
+
+}
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)
 {

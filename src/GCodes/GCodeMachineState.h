@@ -83,6 +83,9 @@ enum class GCodeState : uint8_t
 
 	timingSDwrite,
 
+	x_calib_bcn3d,
+	y_calib_bcn3d,
+
 #if HAS_VOLTAGE_MONITOR
 	powerFailPausing1
 #endif
