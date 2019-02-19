@@ -281,8 +281,6 @@ constexpr size_t ShortScratchStringLength = 50;
 
 constexpr size_t XYZ_AXES = 3;										// The number of Cartesian axes
 constexpr size_t X_AXIS = 0, Y_AXIS = 1, Z_AXIS = 2, E0_AXIS = 3;	// The indices of the Cartesian axes in drive arrays
-constexpr size_t CoreXYU_AXES_BCN3D = 4;							// The number of axes in a CoreXYU machine (Idex)
-
 constexpr size_t CoreXYU_AXES = 5;									// The number of axes in a CoreXYU machine (there is a hidden V axis)
 constexpr size_t CoreXYUV_AXES = 5;									// The number of axes in a CoreXYUV machine
 constexpr size_t U_AXIS = 3, V_AXIS = 4;							// The indices of the U and V motors in a CoreXYU machine (needed by Platform)
@@ -339,7 +337,7 @@ const uint32_t NvicPrioritySpi = 6;				// SPI is used for network transfers on D
 // We have 16 priority levels
 // Use priority 4 or lower for interrupts where low latency is critical and FreeRTOS calls are not needed.
 
-# if SAM4E
+# if SAM4E || __LPC17xx__
 const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 # endif
 
