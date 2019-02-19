@@ -162,7 +162,7 @@ GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) /
 
 	//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
 
-	DoFileMacro(*fileGCode, tool == X_AXIS ? X_BCN3D_CALIB_G : Y_BCN3D_CALIB_G, true, 98);
+	DoFileMacro(*fileGCode, tool == X_AXIS ? X_BCN3D_CALIB_G : Y_BCN3D_CALIB_G, true, 98); // running a system macro
 
 	return GCodeResult::ok;
 
