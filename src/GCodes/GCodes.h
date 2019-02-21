@@ -292,6 +292,7 @@ private:
 	GCodeResult SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply);		// Either return the probe value, or set its threshold
 	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
 	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
+	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
@@ -582,9 +583,10 @@ private:
 	// Laser
 	float laserMaxPower;
 
-	// BCN3D XY Calibration Alejandro Garcia 06/02/2019
+	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
 	int xy_Bcn3dCalib_Samples_Count = 0;						// Must count 4
 	float xy_Bcn3dCalib_SaveMotorStepPos[4]; 	// Save 2 coordinates
+	bool xy_Bcn3dCalib_Save = false;
 
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far

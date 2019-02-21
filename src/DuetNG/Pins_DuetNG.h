@@ -1,7 +1,7 @@
 #ifndef PINS_DUETNG_H__
 #define PINS_DUETNG_H__
 
-# define FIRMWARE_NAME	"RepRapFirmware for Duet 2 WiFi/Ethernet"
+# define FIRMWARE_NAME	"BCN3D fork from RepRapFirmware for Duet 2 WiFi/Ethernet"
 # define DEFAULT_BOARD_TYPE BoardType::DuetWiFi_10
 constexpr size_t NumFirmwareUpdateModules = 4;		// 3 modules, plus one for manual upload to WiFi module (module 2 is now unused)
 # define IAP_FIRMWARE_FILE	"Duet2CombinedFirmware.bin"

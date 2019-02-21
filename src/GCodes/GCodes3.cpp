@@ -135,10 +135,11 @@ GCodeResult GCodes::SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRe
 	return GCodeResult::ok;
 
 }
-//Deal with G34
+//Deal with G34 X Y
 GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
 {
 	uint8_t tool = 0;
+
 	xy_Bcn3dCalib_Samples_Count = 0;
 	if (gb.Seen(axisLetters[X_AXIS]))
 	{
@@ -154,6 +155,14 @@ GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) /
 	}
 
 
+	/*
+	Tool *tool_1;
+
+	tool_1 = reprap.GetTool(1);
+
+	tool_1->SetOffset(U_AXIS, tool_1->GetOffset(U_AXIS), gb.MachineState().runningM501);
+	*/
+
 
 	if(CheckEnoughAxesHomed(0x07)){
 		reply.copy("Not enough axes homed");
@@ -166,6 +175,17 @@ GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) /
 
 	return GCodeResult::ok;
 
+}
+//Deal with G34 S
+GCodeResult GCodes::SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval) // Alejandro Garcia 20/02/2019
+{
+	Tool *tool_1;
+
+	tool_1 = reprap.GetTool(1);
+
+	tool_1->SetOffset(axis, (tool_1->GetOffset(axis) + offsetval), gb.MachineState().runningM501);
+
+	return GCodeResult::ok;
 }
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)

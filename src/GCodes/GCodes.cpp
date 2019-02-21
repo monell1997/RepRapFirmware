@@ -606,6 +606,21 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 
 			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[X_AXIS],(double) offset_xy_bcn3d);
 
+
+
+			if(xy_Bcn3dCalib_Save){
+
+				if(abs(offset_xy_bcn3d)>2.00){
+					reply.copy("Calib X failed, offset is too much large");
+					error = true;
+				}else{
+					SaveOffets_BCN3D(gb, reply, U_AXIS, offset_xy_bcn3d);
+
+				}
+
+				xy_Bcn3dCalib_Save = false;
+			}
+
 			gb.SetState(GCodeState::normal);
 		}
 		break;
@@ -615,7 +630,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 		{
 
 			float left_nozzle_position = 0;
-			float right_nozzle_position = 305;
+			float right_nozzle_position = 0;
 
 			//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
 			//xy_Bcn3dCalib_SaveMotorStepPos[0] = 160.65;
@@ -630,7 +645,21 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 
 			float offset_xy_bcn3d = right_nozzle_position - left_nozzle_position;
 
+
 			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[Y_AXIS],(double) offset_xy_bcn3d);
+
+			if(xy_Bcn3dCalib_Save){
+
+				if(abs(offset_xy_bcn3d)>2.00){
+					reply.copy("Calib Y failed, offset is too much large");
+					error = true;
+				}else{
+					SaveOffets_BCN3D(gb, reply, Y_AXIS, offset_xy_bcn3d);
+
+				}
+
+				xy_Bcn3dCalib_Save = false;
+			}
 
 			gb.SetState(GCodeState::normal);
 		}

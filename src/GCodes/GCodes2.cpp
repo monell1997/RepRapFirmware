@@ -297,6 +297,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		result = FindXYOffet_BCN3D(gb, reply);
 
 		break;
+
 	case 35: //Auto XY calib BCN3D
 
 		if (gb.Seen(axisLetters[X_AXIS]))
@@ -310,6 +311,9 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 			xy_Bcn3dCalib_Samples_Count++;
 			if(xy_Bcn3dCalib_Samples_Count == 4){
 				xy_Bcn3dCalib_Samples_Count = 0;
+				if(gb.Seen('S')){
+					xy_Bcn3dCalib_Save = true;
+				}
 				gb.SetState(GCodeState::x_calib_bcn3d);
 			}
 
@@ -321,10 +325,25 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 
 			xy_Bcn3dCalib_SaveMotorStepPos[xy_Bcn3dCalib_Samples_Count]=currentUserPosition[Y_AXIS];
 
+			xy_Bcn3dCalib_Samples_Count++;
 			if(xy_Bcn3dCalib_Samples_Count == 4){
 				xy_Bcn3dCalib_Samples_Count = 0;
+				if(gb.Seen('S')){
+					xy_Bcn3dCalib_Save = true;
+				}
+
 				gb.SetState(GCodeState::y_calib_bcn3d);
 			}
+
+		}else if (gb.Seen(axisLetters[Z_AXIS]))
+		{
+			//Save Value
+			platform.MessageF(GenericMessage, "Z position triggered is %0.2f \n",(double) currentUserPosition[Z_AXIS]);
+
+			if(gb.Seen('S')){
+				result = SaveOffets_BCN3D(gb, reply, Z_AXIS, -currentUserPosition[Z_AXIS]);
+			}
+
 
 		}else{
 			reply.copy("Not X or Y axes has been selected");
