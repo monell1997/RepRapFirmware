@@ -367,6 +367,12 @@ private:
 	GCodeResult UpdateFirmware(GCodeBuffer& gb, const StringRef &reply);		// Handle M997
 	GCodeResult SendI2c(GCodeBuffer& gb, const StringRef &reply);				// Handle M260
 	GCodeResult ReceiveI2c(GCodeBuffer& gb, const StringRef &reply);			// Handle M261
+	uint8_t CommI2c_M24C02_read_byte(uint32_t addr, uint8_t bValues);			// Handle M262
+	uint8_t CommI2c_M24C02_write_byte(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.1
+	uint8_t CommI2c_M24C02_erase_page(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.2
+	GCodeResult CommI2C_M24C02_store_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M265
+	GCodeResult CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M266
+	GCodeResult CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &reply);		// Handle M263
 	GCodeResult SimulateFile(GCodeBuffer& gb, const StringRef &reply, const StringRef& file, bool updateFile);	// Handle M37 to simulate a whole file
 	GCodeResult ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply, uint32_t newSimulationMode);		// Handle M37 to change the simulation mode
 
@@ -584,9 +590,9 @@ private:
 	float laserMaxPower;
 
 	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
-	int xy_Bcn3dCalib_Samples_Count = 0;						// Must count 4
-	float xy_Bcn3dCalib_SaveMotorStepPos[4]; 	// Save 2 coordinates
-	bool xy_Bcn3dCalib_Save = false;
+	int xyz_Bcn3dCalib_Samples_Count = 0;						// Must count 4
+	float xyz_Bcn3dCalib_SaveMotorStepPos[4][MaxAxes]; 	// Save 2 coordinates
+	bool xyz_Bcn3dCalib_Save = false;
 
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far

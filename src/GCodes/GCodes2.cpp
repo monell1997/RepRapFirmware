@@ -306,13 +306,13 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 
 			platform.MessageF(GenericMessage, "X position triggered is %0.2f \n",(double) currentUserPosition[X_AXIS]);
 
-			xy_Bcn3dCalib_SaveMotorStepPos[xy_Bcn3dCalib_Samples_Count]=currentUserPosition[X_AXIS];
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][X_AXIS]=currentUserPosition[X_AXIS];
 
-			xy_Bcn3dCalib_Samples_Count++;
-			if(xy_Bcn3dCalib_Samples_Count == 4){
-				xy_Bcn3dCalib_Samples_Count = 0;
+			xyz_Bcn3dCalib_Samples_Count++;
+			if(xyz_Bcn3dCalib_Samples_Count == 4){
+				xyz_Bcn3dCalib_Samples_Count = 0;
 				if(gb.Seen('S')){
-					xy_Bcn3dCalib_Save = true;
+					xyz_Bcn3dCalib_Save = true;
 				}
 				gb.SetState(GCodeState::x_calib_bcn3d);
 			}
@@ -323,13 +323,13 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 			//Save Value
 			platform.MessageF(GenericMessage, "Y position triggered is %0.2f \n",(double) currentUserPosition[Y_AXIS]);
 
-			xy_Bcn3dCalib_SaveMotorStepPos[xy_Bcn3dCalib_Samples_Count]=currentUserPosition[Y_AXIS];
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Y_AXIS]=currentUserPosition[Y_AXIS];
 
-			xy_Bcn3dCalib_Samples_Count++;
-			if(xy_Bcn3dCalib_Samples_Count == 4){
-				xy_Bcn3dCalib_Samples_Count = 0;
+			xyz_Bcn3dCalib_Samples_Count++;
+			if(xyz_Bcn3dCalib_Samples_Count == 4){
+				xyz_Bcn3dCalib_Samples_Count = 0;
 				if(gb.Seen('S')){
-					xy_Bcn3dCalib_Save = true;
+					xyz_Bcn3dCalib_Save = true;
 				}
 
 				gb.SetState(GCodeState::y_calib_bcn3d);
@@ -338,11 +338,21 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		}else if (gb.Seen(axisLetters[Z_AXIS]))
 		{
 			//Save Value
-			platform.MessageF(GenericMessage, "Z position triggered is %0.2f \n",(double) currentUserPosition[Z_AXIS]);
+			platform.MessageF(GenericMessage, "Z position triggered is %0.2f \n",(double) (currentUserPosition[Z_AXIS]));
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Z_AXIS]=currentUserPosition[Z_AXIS];
 
-			if(gb.Seen('S')){
-				result = SaveOffets_BCN3D(gb, reply, Z_AXIS, -currentUserPosition[Z_AXIS]);
+			xyz_Bcn3dCalib_Samples_Count++;
+
+			if(xyz_Bcn3dCalib_Samples_Count == 2){
+
+				xyz_Bcn3dCalib_Samples_Count = 0;
+
+				if(gb.Seen('S')){
+					xyz_Bcn3dCalib_Save = true;
+				}
+				gb.SetState(GCodeState::z_calib_bcn3d);
 			}
+
 
 
 		}else{
@@ -2219,6 +2229,71 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 261:	// I2C send
 		result = ReceiveI2c(gb, reply);
+		break;
+
+	case 262:	// I2C report memory data from i2c address
+		{
+
+			if (gb.Seen('A')){
+				uint32_t address = gb.GetUIValue();
+				if (address < 0 && address > 255){
+					result = GCodeResult::badOrMissingParameter;
+				}else{
+					for (int j = 0; j < 16; j++){
+						for (int i = 0; i < 16; i++){
+							platform.MessageF(GenericMessage, " : ");
+							platform.MessageF(GenericMessage, "%02x",CommI2c_M24C02_read_byte( address,(16*j+i)));
+							platform.MessageF(GenericMessage, " : ");
+
+						}
+						platform.MessageF(GenericMessage, "\n");
+					}
+				}
+			}
+
+		}
+
+		break;
+	case 263:	// I2C write page to the memory
+		{
+			result = CommI2C_M24C02_write_page(gb, reply);
+		}
+		break;
+
+	case 264:	// I2C erase memory do not use this command during a print job
+		{
+
+			if (gb.Seen('A')){
+				uint32_t address = gb.GetUIValue();
+				if (address < 0 && address > 255){
+					result = GCodeResult::badOrMissingParameter;
+				}else{
+					for (int j = 0; j < 16; j++){
+
+						if(CommI2c_M24C02_erase_page( address,(16*j), 255) == 0){ // Set 0xff to all the memory
+							reply.printf("EEPROM erasing failure, device: %d \n", (int)address);
+							result = GCodeResult::error;
+							break;
+						}
+						delay(5);
+					}
+					reply.printf("EEPROM erasing Success, device: %d \n", (int)address);
+					result = GCodeResult::ok;
+				}
+			}
+
+		}
+
+		break;
+	case 265: // Save Current Real Time
+		{
+			result = CommI2C_M24C02_store_currentdate(gb, reply);
+		}
+		break;
+	case 266: // Show Current Date saved
+		{
+			result = CommI2C_M24C02_recover_currentdate(gb, reply);
+		}
 		break;
 
 	case 280:	// Servos

@@ -140,7 +140,7 @@ GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) /
 {
 	uint8_t tool = 0;
 
-	xy_Bcn3dCalib_Samples_Count = 0;
+	xyz_Bcn3dCalib_Samples_Count = 0;
 	if (gb.Seen(axisLetters[X_AXIS]))
 	{
 		tool = X_AXIS;
@@ -1205,6 +1205,453 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 	}
 
 	return GCodeResult::badOrMissingParameter;
+#else
+	reply.copy("I2C not available");
+	return GCodeResult::error;
+#endif
+}
+
+// Handle M262
+uint8_t GCodes::CommI2c_M24C02_read_byte(uint32_t addr, uint8_t memory_pos) // Read byte from EEPROM: inputs: i2c address and memory position
+{
+#if defined(I2C_IFACE)
+
+		const uint32_t address = addr;
+
+		platform.InitI2c();
+		uint8_t bValues[MaxI2cBytes];
+		bValues[0] = memory_pos;
+		size_t bytesTransferred;
+		{
+			MutexLocker lock(Tasks::GetI2CMutex());
+			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 1, 1); //Send 1 byte to refer the memory position & Receive such a byte
+		}
+
+		if (bytesTransferred < 1)
+		{
+			platform.MessageF(ErrorMessage, "I2C send query error \n");
+			return 0;
+		}
+
+
+		if (bytesTransferred == 1)
+		{
+			platform.MessageF(ErrorMessage," nothing");
+		}
+		else
+		{
+			for (size_t i = 1; i < bytesTransferred; ++i)
+			{
+				return bValues[i];
+			}
+		}
+
+		return 0;
+
+#else
+
+	return 0;
+#endif
+}
+
+// Not in use right now
+
+uint8_t GCodes::CommI2c_M24C02_write_byte(uint32_t addr, uint8_t memory_pos, uint8_t value) // write byte from EEPROM: inputs: i2c address, memory position and value
+{
+#if defined(I2C_IFACE)
+
+		const uint32_t address = addr;
+
+		platform.InitI2c();
+		uint8_t bValues[MaxI2cBytes];
+		bValues[0] = memory_pos;
+		bValues[1] = value;
+		size_t bytesTransferred;
+		{
+			MutexLocker lock(Tasks::GetI2CMutex());
+			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 2, 0); //Send 1 byte to refer the memory position & Receive such a byte
+		}
+
+		if (bytesTransferred < 1)
+		{
+			platform.MessageF(ErrorMessage, "I2C send query error \n");
+			return 0;
+		}
+
+
+		if (bytesTransferred == 1)
+		{
+			platform.MessageF(ErrorMessage," nothing");
+		}
+		else if (bytesTransferred == 2)
+		{
+			return 1;//success
+
+		}else{
+			platform.MessageF(ErrorMessage," something wrong");
+		}
+
+		return 0;
+
+#else
+
+	return 0;
+#endif
+}
+
+// Handle M264 0.2
+
+uint8_t GCodes::CommI2c_M24C02_erase_page(uint32_t addr, uint8_t memory_pos, uint8_t value) // Erase the page given by the direction of the memory position
+{
+#if defined(I2C_IFACE)
+
+		const uint32_t address = addr;
+
+		platform.InitI2c();
+		uint8_t bValues[MaxI2cBytes];
+		bValues[0] = memory_pos;
+		for (size_t i = 1; i < 17; ++i)
+		{
+			bValues[i] = value;
+		}
+		size_t bytesTransferred;
+		{
+			MutexLocker lock(Tasks::GetI2CMutex());
+			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 17, 0); //Send 16 to erase a page
+		}
+
+		if (bytesTransferred < 1)
+		{
+			platform.MessageF(ErrorMessage, "I2C send query error \n");
+			return 0;
+		}
+
+
+		if (bytesTransferred == 1)
+		{
+			platform.MessageF(ErrorMessage," nothing");
+		}
+		else if (bytesTransferred == 17)
+		{
+			return 1;//success
+
+		}else{
+			platform.MessageF(ErrorMessage," something wrong");
+		}
+
+		return 0;
+
+#else
+
+	return 0;
+#endif
+}
+
+// Handle M263
+
+GCodeResult GCodes::CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &reply) // Each memory page has 16bytes
+{
+#if defined(I2C_IFACE)
+	if (gb.Seen('A'))
+	{
+		const uint32_t address = gb.GetUIValue();
+		uint32_t memaddress = 0;
+
+		if (gb.Seen('L'))
+		{
+			switch(gb.GetUIValue()){
+
+			case 1://Hotend ID
+				memaddress = 16; // page every 16 bytes
+				break;
+			case 2://Date made
+				memaddress = 32;
+			  break;
+			case 3://Nozzle Size
+				memaddress = 48;
+			 break;
+			default:
+				return GCodeResult::badOrMissingParameter;
+				break;
+			}
+
+		}
+
+		int32_t values[15 + 1];// max page is 16(data 15 + 1 (CRC)) + 1 addrs
+		size_t numToSend;
+		if (gb.Seen('B'))
+		{
+			numToSend = 15; // 15 of data
+			gb.GetIntArray(values, numToSend, false);		//TODO allow hex values of the data
+		}
+		else
+		{
+			numToSend = 0;
+		}
+
+		if (numToSend != 0)
+		{
+			if (numToSend > 16)
+			{
+				return GCodeResult::badOrMissingParameter;
+			}
+			uint8_t bValues[16+1];
+			uint8_t checksum = 0;
+			bValues[0] = (uint8_t) memaddress;// set first the memory address
+
+			for (size_t i = 0; i < numToSend; ++i)
+			{
+				bValues[i+1] = (uint8_t)values[i];
+				checksum = checksum^values[i]; // Calc Checksum 8 bit
+			}
+
+			numToSend++; // 1 addrs
+
+			bValues[numToSend] = checksum;// set at the last byte the CRC
+
+			numToSend++; // 1 CRC
+
+			platform.InitI2c();
+			size_t bytesTransferred;
+			{
+				MutexLocker lock(Tasks::GetI2CMutex());
+				bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, 0);
+			}
+
+			if (bytesTransferred < numToSend)
+			{
+				reply.copy("I2C transmission error");
+				return GCodeResult::error;
+			}
+			delay(5);
+			uint8_t rchecksum = CommI2c_M24C02_read_byte(address, memaddress + numToSend - 2);// at the position (memaddress + numToSend - 2) is where there are stored the CRC
+			//platform.MessageF(GenericMessage, "Send %02x \n",checksum);  //debug CRC
+			//platform.MessageF(GenericMessage, "Recv %02x \n",rchecksum); //debug CRC
+			if (checksum != rchecksum)
+			{
+				reply.copy("Checksum mismatch");
+				return GCodeResult::error;
+			}
+
+			return (bytesTransferred == numToSend ) ? GCodeResult::ok : GCodeResult::error;
+		}
+	}
+
+	return GCodeResult::badOrMissingParameter;
+#else
+	reply.copy("I2C not available");
+	return GCodeResult::error;
+#endif
+}
+// Handle M265
+GCodeResult GCodes::CommI2C_M24C02_store_currentdate(GCodeBuffer& gb, const StringRef &reply) // save current date at the memory page 5
+{
+#if defined(I2C_IFACE)
+
+	if (gb.Seen('A')){
+		const uint32_t address = gb.GetUIValue();
+		const uint32_t memaddr = 5;
+		// Get current RTC time
+
+		const time_t now = platform.GetDateTime();
+		struct tm timeInfo;
+
+		if (gmtime_r(&now, &timeInfo) != nullptr)
+		{
+			uint8_t checksum = 0;
+			uint8_t b_calc = 0; // calculed byte
+			int i = 0;
+			//Save MSB_year
+			b_calc = uint8_t((timeInfo.tm_year + 1900) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_year
+			b_calc = uint8_t((timeInfo.tm_year + 1900) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save MSB_month
+			b_calc = uint8_t((timeInfo.tm_mon + 1) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_month
+			b_calc = uint8_t((timeInfo.tm_mon + 1) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save MSB_day
+			b_calc = uint8_t((timeInfo.tm_mday) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_day
+			b_calc = uint8_t((timeInfo.tm_mday) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save MSB_hour
+			b_calc = uint8_t((timeInfo.tm_hour) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_hour
+			b_calc = uint8_t((timeInfo.tm_hour) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save MSB_min
+			b_calc = uint8_t((timeInfo.tm_min) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_min
+			b_calc = uint8_t((timeInfo.tm_min) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save MSB_sec
+			b_calc = uint8_t((timeInfo.tm_sec) >> 8);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++;
+			delay(5);
+			//Save LSB_sec
+			b_calc = uint8_t((timeInfo.tm_sec) & 0x00FF);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
+			checksum = checksum^b_calc; // Calc Checksum 8 bit
+			i++; // i equal to 12
+			delay(5);
+			CommI2c_M24C02_write_byte(address,memaddr*16+i,checksum); // Write Checksum
+			delay(5);
+			uint8_t rchecksum = 0;
+			rchecksum = CommI2c_M24C02_read_byte(address,memaddr*16+i); // Read Checksum
+			if (checksum != rchecksum)
+			{
+				reply.copy("Checksum mismatch");
+				return GCodeResult::error;
+			}else{
+				reply.printf("Current RTC time saved successfully, device: %d \n", (int)address);
+				return GCodeResult::ok;
+			}
+		}
+	}
+
+ return GCodeResult::badOrMissingParameter;
+
+
+#else
+	reply.copy("I2C not available");
+	return GCodeResult::error;
+#endif
+}
+// Handle M266
+GCodeResult GCodes::CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const StringRef &reply) // save current date at the memory page 5
+{
+#if defined(I2C_IFACE)
+
+	if (gb.Seen('A')){
+		const uint32_t address = gb.GetUIValue();
+		const uint32_t memaddr = 5;
+		// Get current RTC time
+		struct tm timeInfo;
+
+		uint8_t checksum = 0;
+		uint8_t b_read = 0; // calculed byte
+		int i = 0;
+
+		//Save MSB_year
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_year = b_read << 8;
+		i++;
+		//Save LSB_year
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_year += b_read;
+		i++;
+		//Save MSB_month
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_mon = b_read << 8;
+		i++;
+		//Save LSB_month
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_mon += b_read;
+		i++;
+		//Save MSB_day
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_mday = b_read << 8;
+		i++;
+		//Save LSB_day
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_mday += b_read;
+		i++;
+		//Save MSB_hour
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_hour = b_read << 8;
+		i++;
+		//Save LSB_hour
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_hour += b_read;
+		i++;
+		//Save MSB_min
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_min = b_read << 8;
+		i++;
+		//Save LSB_min
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_min += b_read;
+		i++;
+		//Save MSB_sec
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_sec = b_read << 8;
+		i++;
+		//Save LSB_sec
+		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
+		checksum = checksum^b_read; // Calc Checksum 8 bit
+		timeInfo.tm_sec += b_read;
+		i++; // i equal to 12
+
+		uint8_t rchecksum = 0;
+		rchecksum = CommI2c_M24C02_read_byte(address,memaddr*16+i); // Read Checksum
+
+		if (checksum != rchecksum)
+		{
+			reply.copy("Checksum mismatch");
+			return GCodeResult::error;
+		}else{
+
+			reply.printf("Last writing date: %04u-%02u-%02u %02u:%02u:%02u\n", timeInfo.tm_year, timeInfo.tm_mon, timeInfo.tm_mday,
+					timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
+
+			return GCodeResult::ok;
+		}
+
+	}
+
+ return GCodeResult::badOrMissingParameter;
+
+
 #else
 	reply.copy("I2C not available");
 	return GCodeResult::error;

@@ -582,6 +582,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			}
 		}
 		break;
+	// The following calib_bcn3d GCodeStates are implemented by A.Garcia to implement the autocalibration
 	case GCodeState::x_calib_bcn3d:
 		if (LockMovementAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for the previous homing move to complete
 		{
@@ -590,25 +591,18 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			float left_nozzle_position = 0;
 			float right_nozzle_position = 305;
 
-			//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
-			//xy_Bcn3dCalib_SaveMotorStepPos[0] = 160.65;
-			//xy_Bcn3dCalib_SaveMotorStepPos[1] = 158.78;
+			left_nozzle_position = xyz_Bcn3dCalib_SaveMotorStepPos[1][X_AXIS]+(xyz_Bcn3dCalib_SaveMotorStepPos[0][X_AXIS]-xyz_Bcn3dCalib_SaveMotorStepPos[1][X_AXIS])/2.0; // 0 is the further coordinate, 1 is the closer
 
-			left_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[1]+(xy_Bcn3dCalib_SaveMotorStepPos[0]-xy_Bcn3dCalib_SaveMotorStepPos[1])/2.0; // 0 is the further coordinate, 1 is the closer
+			right_nozzle_position = xyz_Bcn3dCalib_SaveMotorStepPos[3][X_AXIS]+(xyz_Bcn3dCalib_SaveMotorStepPos[2][X_AXIS]-xyz_Bcn3dCalib_SaveMotorStepPos[3][X_AXIS])/2.0; // 0 is the further coordinate, 1 is the closer
 
-			//Step 2 Calculate RIGHT AXIS POSITION of CALIB-OBJECT
-			//xy_Bcn3dCalib_SaveMotorStepPos[2] = 162.35;
-			//xy_Bcn3dCalib_SaveMotorStepPos[3] = 155.19;
-			right_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[3]+(xy_Bcn3dCalib_SaveMotorStepPos[2]-xy_Bcn3dCalib_SaveMotorStepPos[3])/2.0; // 0 is the further coordinate, 1 is the closer
-
-			float offset_xy_bcn3d = right_nozzle_position - left_nozzle_position;
+			float offset_xy_bcn3d = left_nozzle_position - right_nozzle_position;
 
 
 			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[X_AXIS],(double) offset_xy_bcn3d);
 
 
 
-			if(xy_Bcn3dCalib_Save){
+			if(xyz_Bcn3dCalib_Save){
 
 				if(abs(offset_xy_bcn3d)>2.00){
 					reply.copy("Calib X failed, offset is too much large");
@@ -618,7 +612,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 
 				}
 
-				xy_Bcn3dCalib_Save = false;
+				xyz_Bcn3dCalib_Save = false;
 			}
 
 			gb.SetState(GCodeState::normal);
@@ -632,23 +626,16 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			float left_nozzle_position = 0;
 			float right_nozzle_position = 0;
 
-			//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
-			//xy_Bcn3dCalib_SaveMotorStepPos[0] = 160.65;
-			//xy_Bcn3dCalib_SaveMotorStepPos[1] = 158.78;
+			left_nozzle_position = xyz_Bcn3dCalib_SaveMotorStepPos[1][Y_AXIS]+(xyz_Bcn3dCalib_SaveMotorStepPos[0][Y_AXIS]-xyz_Bcn3dCalib_SaveMotorStepPos[1][Y_AXIS])/2.0; // 0 is the further coordinate, 1 is the closer
 
-			left_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[1]+(xy_Bcn3dCalib_SaveMotorStepPos[0]-xy_Bcn3dCalib_SaveMotorStepPos[1])/2.0; // 0 is the further coordinate, 1 is the closer
-
-			//Step 2 Calculate RIGHT AXIS POSITION of CALIB-OBJECT
-			//xy_Bcn3dCalib_SaveMotorStepPos[2] = 162.35;
-			//xy_Bcn3dCalib_SaveMotorStepPos[3] = 155.19;
-			right_nozzle_position = xy_Bcn3dCalib_SaveMotorStepPos[3]+(xy_Bcn3dCalib_SaveMotorStepPos[2]-xy_Bcn3dCalib_SaveMotorStepPos[3])/2.0; // 0 is the further coordinate, 1 is the closer
+			right_nozzle_position = xyz_Bcn3dCalib_SaveMotorStepPos[3][Y_AXIS]+(xyz_Bcn3dCalib_SaveMotorStepPos[2][Y_AXIS]-xyz_Bcn3dCalib_SaveMotorStepPos[3][Y_AXIS])/2.0; // 0 is the further coordinate, 1 is the closer
 
 			float offset_xy_bcn3d = right_nozzle_position - left_nozzle_position;
 
 
 			reply.printf("BCN3D %c axis offset is %0.2f",axisLetters[Y_AXIS],(double) offset_xy_bcn3d);
 
-			if(xy_Bcn3dCalib_Save){
+			if(xyz_Bcn3dCalib_Save){
 
 				if(abs(offset_xy_bcn3d)>2.00){
 					reply.copy("Calib Y failed, offset is too much large");
@@ -658,12 +645,30 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 
 				}
 
-				xy_Bcn3dCalib_Save = false;
+				xyz_Bcn3dCalib_Save = false;
 			}
 
 			gb.SetState(GCodeState::normal);
 		}
 		break;
+	case GCodeState::z_calib_bcn3d:
+			if (LockMovementAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for the previous homing move to complete
+			{
+
+				if(xyz_Bcn3dCalib_Save){
+					float c = 0.0;
+
+					c = xyz_Bcn3dCalib_SaveMotorStepPos[0][Z_AXIS] - xyz_Bcn3dCalib_SaveMotorStepPos[1][Z_AXIS];
+
+					platform.MessageF(GenericMessage, "Z mean position triggered is %0.2f \n",(double) c);
+					SaveOffets_BCN3D(gb, reply, Z_AXIS, c);
+
+					xyz_Bcn3dCalib_Save = false;
+				}
+
+				gb.SetState(GCodeState::normal);
+			}
+			break;
 
 	case GCodeState::toolChange0: 		// Run tfree for the old tool (if any)
 	case GCodeState::m109ToolChange0:	// Run tfree for the old tool (if any)

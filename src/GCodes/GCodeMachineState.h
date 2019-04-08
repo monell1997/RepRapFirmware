@@ -85,6 +85,7 @@ enum class GCodeState : uint8_t
 
 	x_calib_bcn3d, //BCN3D
 	y_calib_bcn3d,
+	z_calib_bcn3d,
 
 #if HAS_VOLTAGE_MONITOR
 	powerFailPausing1
