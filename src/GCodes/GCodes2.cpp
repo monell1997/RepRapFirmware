@@ -4418,6 +4418,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			platform.SoftwareReset(reason);			// doesn't return
 		}
 		break;
+	case 1010:
+
+		platform.MessageF(GenericMessage, "Sending message \n");
+		platform.MessageF(Uart0_duet2, "M1011");
+		break;
+	case 1011:
+
+		platform.MessageF(GenericMessage, "Message received \n");
+		break;
 
 	default:
 		result = GCodeResult::warningNotSupported;

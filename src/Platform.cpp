@@ -1160,9 +1160,17 @@ void Platform::SendAuxMessage(const char* msg)
 	OutputBuffer *buf;
 	if (OutputBuffer::Allocate(buf))
 	{
-		buf->copy("{\"message\":");
-		buf->EncodeString(msg, false);
-		buf->cat("}\n");
+		//buf->copy("{\"message\":");
+		//buf->EncodeString(msg, false);
+		//buf->cat("}\n");
+
+		// change Send Messages for another duet
+
+
+		buf->copy("");
+		buf->cat(msg);
+		buf->cat("\n");
+
 		auxOutput.Push(buf);
 		FlushAuxMessages();
 	}
