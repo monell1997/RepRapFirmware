@@ -118,6 +118,7 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 	}
 	return GCodeResult::ok;
 }
+#ifdef BCN3D_DEV
 //Deal with G33
 GCodeResult GCodes::SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
 {
@@ -187,6 +188,7 @@ GCodeResult GCodes::SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, si
 
 	return GCodeResult::ok;
 }
+#endif
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)
 {

@@ -18,6 +18,10 @@
 #include "TmcDriverTemperatureSensor.h"
 #endif
 
+#ifdef BCN3D_DEV
+#include "HDC1010Sensor.h"
+#endif
+
 // Constructor
 TemperatureSensor::TemperatureSensor(unsigned int chan, const char *t) : sensorChannel(chan), sensorType(t), heaterName(nullptr), lastError(TemperatureError::success) {}
 

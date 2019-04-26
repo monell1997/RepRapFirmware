@@ -582,6 +582,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			}
 		}
 		break;
+#ifdef BCN3D_DEV
 	// The following calib_bcn3d GCodeStates are implemented by A.Garcia to implement the autocalibration
 	case GCodeState::x_calib_bcn3d:
 		if (LockMovementAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for the previous homing move to complete
@@ -669,7 +670,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 				gb.SetState(GCodeState::normal);
 			}
 			break;
-
+#endif
 	case GCodeState::toolChange0: 		// Run tfree for the old tool (if any)
 	case GCodeState::m109ToolChange0:	// Run tfree for the old tool (if any)
 		doingToolChange = true;

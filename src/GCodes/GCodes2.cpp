@@ -285,7 +285,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 
 		DoFileMacro(gb, BED_EQUATION_G, true);	// Try to execute bed.g
 		break;
-
+#ifdef BCN3D_DEV
 	case 33: //Set the current Z Position as the Z-probe offset
 
 			result = SetPrintZprobe_Zoffset_BCN3D(gb, reply);
@@ -362,6 +362,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 
 
 		break;
+#endif
 
 #if SUPPORT_WORKPLACE_COORDINATES
 	case 53:	// Temporarily use machine coordinates
@@ -4418,6 +4419,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			platform.SoftwareReset(reason);			// doesn't return
 		}
 		break;
+	#ifdef BCN3D_DEV
 	case 1010:
 
 		platform.MessageF(GenericMessage, "Sending message \n");
@@ -4427,7 +4429,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 		platform.MessageF(GenericMessage, "Message received \n");
 		break;
-
+	#endif
 	default:
 		result = GCodeResult::warningNotSupported;
 		break;

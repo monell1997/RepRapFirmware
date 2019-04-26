@@ -290,9 +290,11 @@ private:
 	void InitialiseTaps();														// Set up to do the first of a possibly multi-tap probe
 	void SetBedEquationWithProbe(int sParam, const StringRef& reply);			// Probes a series of points and sets the bed equation
 	GCodeResult SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply);		// Either return the probe value, or set its threshold
+	#ifdef BCN3D_DEV
 	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
 	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
 	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
+	#endif
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
@@ -589,11 +591,12 @@ private:
 	// Laser
 	float laserMaxPower;
 
+	#ifdef BCN3D_DEV
 	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
 	int xyz_Bcn3dCalib_Samples_Count = 0;						// Must count 4
 	float xyz_Bcn3dCalib_SaveMotorStepPos[4][MaxAxes]; 	// Save 2 coordinates
 	bool xyz_Bcn3dCalib_Save = false;
-
+	#endif
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
 	uint32_t heaterFaultTime;					// when the heater fault occurred
@@ -637,8 +640,10 @@ private:
 	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
 	static constexpr const char* PEEL_MOVE_G = "peel-move.g";
+	#ifdef BCN3D_DEV
 	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
 	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
+	#endif
 #if HAS_SMART_DRIVERS
 	static constexpr const char* REHOME_G = "rehome.g";
 #endif

@@ -364,4 +364,8 @@ constexpr char LIST_SEPARATOR = ':';
 constexpr char FILE_LIST_SEPARATOR = ',';
 constexpr char FILE_LIST_BRACKET = '"';
 
+
+// Firmware Mod definitions
+#define BCN3D_DEV
+
 #endif
