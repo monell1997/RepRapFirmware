@@ -15,6 +15,10 @@
 // Define the minimum interval between readings.
 const uint32_t MinimumReadInterval = 2000;		// minimum interval between reads, in milliseconds
 
+HDC1010Sensor::HDC1010Sensor(unsigned int addr_offset)
+	: I2CTemHumSensor(addr_offset, "HDC1010 Sensor I2C"), addr(80)
+{
+}
 void HDC1010Sensor::Init()
 {
 	InitI2C();
@@ -63,19 +67,19 @@ GCodeResult HDC1010Sensor::Configure(unsigned int mCode, unsigned int heater, GC
 TemperatureError HDC1010Sensor::TryInitI2C() const
 {
 
-	static const uint8_t command[1] = {0x50};			// Read Memory from dir 0x50 tem
+	const uint8_t command_1[1] = {0x50};			// Read Memory from dir 0x50 tem
 	const uint16_t addr = 80;//default dir
 	uint32_t rawVal;
 
-	const TemperatureError sts = DoI2CTransaction(command, ARRAY_SIZE(command), 2, rawVal, addr);
+	TemperatureError sts = DoI2CTransaction(command_1, ARRAY_SIZE(command_1), 2, rawVal, addr);
 
 	if(rawVal > 100 && 0 > rawVal){
 		sts = TemperatureError::badResponse;
 		return sts;
 	}
 
-	static const uint8_t command[1] = {0x52};			// Read Memory from dir 0x52 hum
-	const TemperatureError sts = DoI2CTransaction(command, ARRAY_SIZE(command), 2, rawVal, addr);
+	const uint8_t command_2[1] = {0x52};			// Read Memory from dir 0x52 hum
+	sts = DoI2CTransaction(command_2, ARRAY_SIZE(command_2), 2, rawVal, addr);
 	if(rawVal > 100 && 0 > rawVal){
 		sts = TemperatureError::badResponse;
 	}

@@ -17,7 +17,7 @@
 class HDC1010Sensor : public I2CTemHumSensor
 {
 public:
-	HDC1010Sensor(unsigned int channel);
+	HDC1010Sensor(unsigned int addr_offset);
 	GCodeResult Configure(unsigned int mCode, unsigned int heater, GCodeBuffer& gb, const StringRef& reply) override;
 	void Init() override;
 

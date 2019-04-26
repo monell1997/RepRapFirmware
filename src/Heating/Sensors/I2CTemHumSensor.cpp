@@ -12,7 +12,13 @@
 #include "Tasks.h"
 #include "Wire.h"
 #ifdef BCN3D_DEV
+I2CTemHumSensor::I2CTemHumSensor(unsigned int channel, const char *name)
+	: TemperatureSensor(channel, name)
+{
 
+	lastTemperature = 0.0;
+	lastResult = TemperatureError::notInitialised;
+}
 void I2CTemHumSensor::InitI2C(){
 	// Initialise the I2C interface, if not already done
 
