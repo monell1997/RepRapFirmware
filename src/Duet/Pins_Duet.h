@@ -110,6 +110,8 @@ constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { 77, 87, 16, 17 };
 
 #endif
 
+constexpr size_t Maxi2cTempSensors = 4;
+
 // Arduino Due pin number that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = 12;											// Arduino Due pin number that controls the ATX power on/off
 

@@ -35,7 +35,7 @@ void I2CTemHumSensor::InitI2C(){
 	#endif
 
 }
-TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size_t numToSend, size_t numToReceive, uint32_t& rslt, uint16_t addr) const pre(numToSend <= 8){
+TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size_t numToSend, size_t numToReceive, uint32_t& rslt, uint16_t address) const pre(numToSend <= 8){
 
 
 	size_t bytesTransferred;
@@ -52,13 +52,16 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 		{
 			return TemperatureError::busBusy;
 		}
-		bytesTransferred = I2C_IFACE.Transfer(addr, bValues, numToSend, numToReceive);
-
-
+		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
+		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
+		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));
+		reprap.GetPlatform().MessageF(GenericMessage, "numToSend I2C: %d\n", int(numToSend));
+		reprap.GetPlatform().MessageF(GenericMessage, "numToReceive I2C: %d\n", int(numToReceive));*/
 		if (bytesTransferred < numToSend)
 		{
 
 		return TemperatureError::hardwareError;
+
 		}
 		else if (numToReceive != 0)
 		{

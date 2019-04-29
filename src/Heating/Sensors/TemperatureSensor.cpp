@@ -147,6 +147,12 @@ TemperatureSensor *TemperatureSensor::Create(unsigned int channel)
 		ts = new TmcDriverTemperatureSensor(channel);
 	}
 #endif
+#ifdef BCN3D_DEV
+	else if (channel >= FirstHDC1010Channel && channel < FirstHDC1010Channel + Maxi2cTempSensors)
+	{
+		ts = new HDC1010Sensor(channel);
+	}
+#endif
 
 	if (ts != nullptr)
 	{

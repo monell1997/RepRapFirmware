@@ -23,11 +23,10 @@ public:
 
 protected:
 	TemperatureError TryGetTemperature(float& t) override;
-	TemperatureError TryGetHumidity(float& t);
-
 private:
 	TemperatureError TryInitI2C() const;
 	uint16_t addr;				// i2c address
+	bool temorhum;
 };
 #endif
 #endif /* SRC_HEATING_SENSORS_HDC1010SENSOR_H_ */

@@ -20,7 +20,7 @@
 #endif
 
 #ifndef DATE
-# define DATE "2019-04-25b1"
+# define DATE "2019-04-29b1"
 #endif
 
 #define AUTHORS "reprappro, dc42, chrishamm, t3p3, dnewman, printm3d, Alejandro" // BCN3D mods by Alejandro

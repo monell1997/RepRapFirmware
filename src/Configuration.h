@@ -160,6 +160,7 @@ constexpr unsigned int FirstPT1000Channel = 500;		// Temperature sensor channels
 constexpr unsigned int CpuTemperatureSenseChannel = 1000;  // Sensor 1000 is the MCU's own temperature sensor
 constexpr unsigned int FirstTmcDriversSenseChannel = 1001; // Sensors 1001..1002 are the TMC2660 driver temperature sense
 constexpr unsigned int NumTmcDriversSenseChannels = 2;	// Sensors 1001..1002 are the TMC2660 driver temperature sense
+constexpr unsigned int FirstHDC1010Channel = 1010; 		// I2C sensor temperature
 
 // PWM frequencies
 constexpr unsigned int SlowHeaterPwmFreq = 10;			// slow PWM frequency for bed and chamber heaters, compatible with DC/AC SSRs

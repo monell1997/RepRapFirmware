@@ -16,8 +16,9 @@
 const uint32_t MinimumReadInterval = 2000;		// minimum interval between reads, in milliseconds
 
 HDC1010Sensor::HDC1010Sensor(unsigned int addr_offset)
-	: I2CTemHumSensor(addr_offset, "HDC1010 Sensor I2C"), addr(80)
+	: I2CTemHumSensor(addr_offset, "HDC1010 Sensor I2C")// addr between 64-67
 {
+	addr = addr_offset - FirstHDC1010Channel + 64;
 }
 void HDC1010Sensor::Init()
 {
@@ -51,7 +52,9 @@ GCodeResult HDC1010Sensor::Configure(unsigned int mCode, unsigned int heater, GC
 		bool seen = false;
 		if(gb.Seen('A')){
 			seen = true;
-			addr = (uint16_t) gb.GetUIValue();
+			temorhum = true;
+		}else{
+			temorhum = false;
 		}
 		TryConfigureHeaterName(gb, seen);
 
@@ -67,22 +70,11 @@ GCodeResult HDC1010Sensor::Configure(unsigned int mCode, unsigned int heater, GC
 TemperatureError HDC1010Sensor::TryInitI2C() const
 {
 
-	const uint8_t command_1[1] = {0x50};			// Read Memory from dir 0x50 tem
-	const uint16_t addr = 80;//default dir
+	const uint8_t command_1[3] = {0x02, 0x00, 0x00};			// Read Memory from dir 0x50 tem
+	//const uint16_t addr = 80;//default dir
 	uint32_t rawVal;
 
-	TemperatureError sts = DoI2CTransaction(command_1, ARRAY_SIZE(command_1), 2, rawVal, addr);
-
-	if(rawVal > 100 && 0 > rawVal){
-		sts = TemperatureError::badResponse;
-		return sts;
-	}
-
-	const uint8_t command_2[1] = {0x52};			// Read Memory from dir 0x52 hum
-	sts = DoI2CTransaction(command_2, ARRAY_SIZE(command_2), 2, rawVal, addr);
-	if(rawVal > 100 && 0 > rawVal){
-		sts = TemperatureError::badResponse;
-	}
+	TemperatureError sts = DoI2CTransaction(command_1, ARRAY_SIZE(command_1), 0, rawVal, addr);
 
 	return sts;
 }
@@ -94,64 +86,60 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 	}
 	else
 	{
-		static const uint8_t command[1] = {0x50};			// Read Memory from dir 0x50 tem
-		const uint16_t addr = 80;//default dir
+		static bool rw = false; // request data
+		static const uint8_t command[1] = {0x01};			// Read Memory from dir 0x52 hum
+		static const uint8_t command2[1] = {0x00};			// Read Memory from dir 0x52 hum
+
+
+		TemperatureError sts;
 		uint32_t rawVal;
 
-		const TemperatureError sts = DoI2CTransaction(command, ARRAY_SIZE(command), 2, rawVal, addr);
-
-		if (sts != TemperatureError::success)
-		{
-			lastResult = sts;
-		}
-		else
-		{
-			lastReadingTime = millis();
-
-			if(rawVal < 100 && 0 < rawVal){
-				t = (float) rawVal;
+		if(rw){
+			if(temorhum){
+			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
 			}else{
-				lastResult = TemperatureError::hardwareError;
-				delay(1);
-				TryInitI2C();
+			sts = DoI2CTransaction(command,0, 2, rawVal, addr);
+			}
+			if (sts != TemperatureError::success)
+			{
+				lastResult = sts;
+				lastReadingTime = millis();
+			}
+			else
+			{
+				lastReadingTime = millis();
+				if(temorhum){
+					t = ((float) rawVal *100.0 / 65536.0);
+				}else{
+					t = ((float) rawVal *165.0 / 65536.0)-40.0;
+				}
+
+				lastTemperature = t;
+				/*if(rawVal < 100 && 0 < rawVal){
+					t = (float) rawVal;
+				}else{
+					lastResult = TemperatureError::hardwareError;
+					delay(1);
+					TryInitI2C();
+				}*/
 			}
 
+			rw = false;
+		}else{
+
+			if(temorhum){
+			sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data
+			}else{
+			sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data
+			}
+			lastResult = sts;
+			t = lastTemperature;
+			rw = true;
 		}
+		delay(10);
+
 	}
 	return lastResult;
 }
-TemperatureError HDC1010Sensor::TryGetHumidity(float& t)
-{
-	if (inInterrupt() || millis() - lastReadingTime < MinimumReadInterval)
-	{
-		t = lastTemperature;
-	}
-	else
-	{
-		static const uint8_t command[1] = {0x52};			// Read Memory from dir 0x52 hum
-		const uint16_t addr = 80;//default dir
-		uint32_t rawVal;
 
-		const TemperatureError sts = DoI2CTransaction(command, ARRAY_SIZE(command), 2, rawVal, addr);
-
-		if (sts != TemperatureError::success)
-		{
-			lastResult = sts;
-		}
-		else
-		{
-			lastReadingTime = millis();
-
-			if(rawVal < 100 && 0 < rawVal){
-				t = (float) rawVal;
-			}else{
-				lastResult = TemperatureError::hardwareError;
-				delay(1);
-				TryInitI2C();
-			}
-
-		}
-	}
-	return lastResult;
-}
 #endif
