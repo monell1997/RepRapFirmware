@@ -16,19 +16,13 @@ uint8_t pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 uint8_t pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
-// #define PN532DEBUG
-// #define MIFAREDEBUG
+ #define PN532DEBUG
+ #define MIFAREDEBUG
 
 // If using Native Port on Arduino Zero or Due define as SerialUSB
 #define PN532DEBUGPRINT Serial
 //#define PN532DEBUGPRINT SerialUSB
 
-// Hardware SPI-specific configuration:
-#ifdef SPI_HAS_TRANSACTION
-    #define PN532_SPI_SETTING SPISettings(1000000, LSBFIRST, SPI_MODE0)
-#else
-    #define PN532_SPI_CLOCKDIV SPI_CLOCK_DIV16
-#endif
 
 #define PN532_PACKBUFFSIZ 64
 uint8_t pn532_packetbuffer[PN532_PACKBUFFSIZ];
@@ -51,7 +45,7 @@ TagReaderWriter::TagReaderWriter(uint8_t ss, uint8_t spiMode, uint32_t clockFreq
   _usingSPI(true),
   _hardwareSPI(true)
 {
-	device.csPin = ss;
+	device.csPin = SpiTempSensorCsPins[ss];// CS1 up to CS4
 	device.csPolarity = false;						// active low chip select
 	device.spiMode = spiMode;
 	device.clockFrequency = clockFrequency;
@@ -63,12 +57,14 @@ TagReaderWriter::TagReaderWriter(uint8_t ss, uint8_t spiMode, uint32_t clockFreq
 */
 /**************************************************************************/
 void TagReaderWriter::begin() {
-  if (_usingSPI) {
-    // SPI initialization
-    if (_hardwareSPI) {
-    	sspi_master_init(&device, 8);
-    }
-    //digitalWrite(_ss, LOW);
+
+    sspi_master_init(&device, 8);
+
+
+    sspi_master_setup_device(&device);
+	delayMicroseconds(1);
+	sspi_select_device(&device);
+	delayMicroseconds(1);
 
     delay(1000);
 
@@ -78,11 +74,11 @@ void TagReaderWriter::begin() {
 
     // ignore response!
 
-    //digitalWrite(_ss, HIGH);
-    #ifdef SPI_HAS_TRANSACTION
-      if (_hardwareSPI) SPI.endTransaction();
-    #endif
-  }
+    delayMicroseconds(1);
+	sspi_deselect_device(&device);
+	delayMicroseconds(1);
+
+
 }
 
 /**************************************************************************/
