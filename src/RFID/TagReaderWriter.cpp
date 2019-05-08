@@ -31,7 +31,10 @@ uint8_t pn532_packetbuffer[PN532_PACKBUFFSIZ];
     #define _BV(bit) (1<<(bit))
 #endif
 
+const uint32_t PN532_Frequency = 400000;	// maximum for PN532 is also 400kHz
 
+
+const uint8_t PN532_SpiMode = SPI_MODE_0;
 
 
 /**************************************************************************/
@@ -41,14 +44,15 @@ uint8_t pn532_packetbuffer[PN532_PACKBUFFSIZ];
     @param  ss        SPI chip select pin (CS/SSEL)
 */
 /**************************************************************************/
-TagReaderWriter::TagReaderWriter(uint8_t ss, uint8_t spiMode, uint32_t clockFrequency):
+TagReaderWriter::TagReaderWriter(uint8_t ss):
   _usingSPI(true),
   _hardwareSPI(true)
 {
 	device.csPin = SpiTempSensorCsPins[ss];// CS1 up to CS4
 	device.csPolarity = false;						// active low chip select
-	device.spiMode = spiMode;
-	device.clockFrequency = clockFrequency;
+	device.spiMode = PN532_SpiMode;
+	device.clockFrequency = PN532_Frequency;
+	isInit = false;
 }
 
 /**************************************************************************/
@@ -77,7 +81,7 @@ void TagReaderWriter::begin() {
     delayMicroseconds(1);
 	sspi_deselect_device(&device);
 	delayMicroseconds(1);
-
+	isInit = true;
 
 }
 
@@ -1370,12 +1374,13 @@ bool TagReaderWriter::isready() {
 
     const uint8_t dataOut[1] = {PN532_SPI_STATREAD};
     uint8_t rawBytes[8];
+
 	MutexLocker lock(Tasks::GetSpiMutex(), 10);
 	if (!lock)
 	{
+		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
 		return 0;
 	}
-
 	sspi_master_setup_device(&device);
 	delayMicroseconds(1);
 	sspi_select_device(&device);
@@ -1389,7 +1394,8 @@ bool TagReaderWriter::isready() {
 
     // read uint8_t
     uint8_t x = rawBytes[0];
-
+    reprap.GetPlatform().MessageF(GenericMessage, " 0x");
+    reprap.GetPlatform().MessageF(GenericMessage, "%02x",x);
     //digitalWrite(_ss, HIGH);
     #ifdef SPI_HAS_TRANSACTION
       if (_hardwareSPI) SPI.endTransaction();
@@ -1562,8 +1568,8 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 
     #ifdef PN532DEBUG
       reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)~checksum);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_POSTAMBLE);
-      PN532DEBUGPRINT.println();
+      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",(uint8_t)PN532_POSTAMBLE);
+
     #endif
   }
 }

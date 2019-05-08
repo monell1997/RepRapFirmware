@@ -25,7 +25,9 @@ Licence: GPL
 #include "ObjectModel/ObjectModel.h"
 #include "MessageType.h"
 #include "RTOSIface/RTOSIface.h"
-
+#ifdef BCN3D_DEV
+#include "RFID/TagReaderWriter.h"
+#endif
 enum class ResponseSource
 {
 	HTTP,
@@ -98,7 +100,9 @@ public:
 	Roland& GetRoland() const;
 	Scanner& GetScanner() const;
 	PrintMonitor& GetPrintMonitor() const;
-
+#ifdef BCN3D_DEV
+	TagReaderWriter& GetTagReaderWriter() const;
+#endif
 #if SUPPORT_IOBITS
  	PortControl& GetPortControl() const;
 #endif
@@ -159,7 +163,9 @@ private:
 	Roland* roland;
 	Scanner* scanner;
  	PrintMonitor* printMonitor;
-
+#ifdef BCN3D_DEV
+ 	TagReaderWriter* tagreaderwriter;
+#endif
 #if SUPPORT_IOBITS
  	PortControl *portControl;
 #endif
@@ -211,7 +217,9 @@ inline Network& RepRap::GetNetwork() const { return *network; }
 inline Roland& RepRap::GetRoland() const { return *roland; }
 inline Scanner& RepRap::GetScanner() const { return *scanner; }
 inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
-
+#ifdef BCN3D_DEV
+inline TagReaderWriter& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
+#endif
 #if SUPPORT_IOBITS
 inline PortControl& RepRap::GetPortControl() const { return *portControl; }
 #endif

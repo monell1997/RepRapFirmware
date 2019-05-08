@@ -51,7 +51,9 @@ Heat::Heat(Platform& p)
 {
 	ARRAY_INIT(bedHeaters, DefaultBedHeaters);
 	ARRAY_INIT(chamberHeaters, DefaultChamberHeaters);
-
+#ifdef BCN3D_DEV
+	ARRAY_INIT(slavechamberHeaters, DefaultChamberHeaters);
+#endif
 	for (size_t index : ARRAY_INDICES(heaterProtections))
 	{
 		heaterProtections[index] = new HeaterProtection(index);
@@ -320,7 +322,36 @@ bool Heat::IsBedHeater(int8_t heater) const
 	}
 	return false;
 }
-
+#ifdef BCN3D_DEV
+int8_t Heat::GetSlaveChamberHeater(int8_t heater)
+{
+	size_t i = 0;
+	for (int8_t chamberHeater : chamberHeaters)
+	{
+		if (heater == chamberHeater)
+		{
+			return slavechamberHeaters[i];
+		}
+		i++;
+	}
+	return -1;
+}
+void Heat::SetChamberHeater(size_t index, int8_t heater, int8_t slave)
+{
+	const int chamberHeater = chamberHeaters[heater];
+	if (chamberHeater >= 0)
+	{
+		pids[chamberHeater]->SwitchOff();
+	}
+	chamberHeaters[index] = heater;
+	const int slavechamberHeater = slavechamberHeaters[slave];
+	if (slavechamberHeater >= 0)
+	{
+		pids[slavechamberHeater]->SwitchOff();
+	}
+	slavechamberHeaters[index] = slave;
+}
+#else
 void Heat::SetChamberHeater(size_t index, int8_t heater)
 {
 	const int chamberHeater = chamberHeaters[heater];
@@ -330,6 +361,7 @@ void Heat::SetChamberHeater(size_t index, int8_t heater)
 	}
 	chamberHeaters[index] = heater;
 }
+#endif
 
 bool Heat::IsChamberHeater(int8_t heater) const
 {

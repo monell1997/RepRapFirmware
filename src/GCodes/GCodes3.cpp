@@ -1659,7 +1659,31 @@ GCodeResult GCodes::CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const St
 	return GCodeResult::error;
 #endif
 }
+#ifdef BCN3D_DEV
+//Deal with M770
+GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply){
 
+	uint8_t ss = 0;
+	if (gb.Seen('C')){
+		ss = (uint8_t)gb.GetIValue();
+
+		if(ss > 3){
+			reply.copy("Spi channel are not between 0-3");
+			return GCodeResult::badOrMissingParameter;
+		}
+
+
+	}else{
+		reply.copy("Parameter missing");
+		return GCodeResult::badOrMissingParameter;
+	}
+
+
+	reprap.GetTagReaderWriter().begin();
+
+	return GCodeResult::ok;
+}
+#endif
 // Deal with M569
 GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply)
 {

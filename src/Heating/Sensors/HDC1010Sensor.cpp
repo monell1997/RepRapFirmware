@@ -14,6 +14,7 @@
 
 // Define the minimum interval between readings.
 const uint32_t MinimumReadInterval = 2000;		// minimum interval between reads, in milliseconds
+const uint32_t Default_delay = 10;		// minimum interval between request and send, in milliseconds
 
 HDC1010Sensor::HDC1010Sensor(unsigned int addr_offset)
 	: I2CTemHumSensor(addr_offset, "HDC1010 Sensor I2C")// addr between 64-67
@@ -80,7 +81,15 @@ TemperatureError HDC1010Sensor::TryInitI2C() const
 }
 TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 {
-	if (inInterrupt() || millis() - lastReadingTime < MinimumReadInterval)
+	// Sample time slot for temp HDC1010Sensor sensor with addr 64 is millis()
+	// Sample time slot for temp HDC1010Sensor sensor with addr 65 is millis() + 100
+	// Sample time slot for temp HDC1010Sensor sensor with addr 66 is millis() + 200
+	// Sample time slot for temp HDC1010Sensor sensor with addr 67 is millis() + 300
+	// Sample time slot for hum HDC1010Sensor sensor with addr 64 is millis() + 1000
+	// Sample time slot for hum HDC1010Sensor sensor with addr 65 is millis() + 1100
+	// Sample time slot for hum HDC1010Sensor sensor with addr 66 is millis() + 1200
+	// Sample time slot for hum HDC1010Sensor sensor with addr 67 is millis() + 1300
+	if (inInterrupt() || millis()+(temorhum?1000:0)+100*(addr-64) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
 	{
 		t = lastTemperature;
 	}
@@ -93,7 +102,7 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 
 		TemperatureError sts;
 		uint32_t rawVal;
-
+		//reprap.GetPlatform().MessageF(GenericMessage, "%u millis(): %lu \n",addr, millis());
 		if(rw){
 			if(temorhum){
 			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
@@ -103,11 +112,11 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 			if (sts != TemperatureError::success)
 			{
 				lastResult = sts;
-				lastReadingTime = millis();
+				lastReadingTime = (temorhum?1000:0)+100*(addr-64)+millis()-Default_delay;
 			}
 			else
 			{
-				lastReadingTime = millis();
+				lastReadingTime = (temorhum?1000:0)+100*(addr-64)+millis()-Default_delay;
 				if(temorhum){
 					t = ((float) rawVal *100.0 / 65536.0);
 				}else{
@@ -135,8 +144,9 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 			lastResult = sts;
 			t = lastTemperature;
 			rw = true;
+			lastReadingTime = (temorhum?1000:0)+100*(addr-64) + millis()-(MinimumReadInterval-Default_delay);
 		}
-		delay(10);
+		//delay(10);
 
 	}
 	return lastResult;

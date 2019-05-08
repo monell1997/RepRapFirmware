@@ -294,6 +294,7 @@ private:
 	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
 	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
 	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
+	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to configure SPI for RFID r/w
 	#endif
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
@@ -423,6 +424,7 @@ private:
 #endif
 
 	Platform& platform;													// The RepRap machine
+	//TagReaderWriter& tagreaderwriter;									// The tagreader
 
 	FileGCodeInput* fileInput;											// ...
 	StreamGCodeInput* serialInput;										// ...

@@ -1749,7 +1749,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 				if (code == 141)
 				{
+#ifdef BCN3D_DEV
+					int slave = heater;
+					if (gb.Seen('E')){
+						slave = gb.GetIValue();
+					}
+					platform.MessageF(GenericMessage,"%d\n",slave);
+					heat.SetChamberHeater(index, heater, slave);
+#else
 					heat.SetChamberHeater(index, heater);
+#endif
 				}
 				else
 				{
@@ -2231,7 +2240,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 261:	// I2C send
 		result = ReceiveI2c(gb, reply);
 		break;
-
+#ifdef BCN3D_DEV
 	case 262:	// I2C report memory data from i2c address
 		{
 
@@ -2296,7 +2305,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			result = CommI2C_M24C02_recover_currentdate(gb, reply);
 		}
 		break;
-
+#endif
 	case 280:	// Servos
 		if (gb.Seen('P'))
 		{
@@ -4172,7 +4181,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		result = GCodeResult::error;
 		break;
 #endif
-
+#ifdef BCN3D_DEV
+	case 770:
+		result = ConfiguteRFIDReader(gb, reply);
+		break;
+#endif
 	case 851: // Set Z probe offset, only for Marlin compatibility
 		{
 			ZProbe params = platform.GetCurrentZProbeParameters();

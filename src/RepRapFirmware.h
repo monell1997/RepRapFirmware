@@ -88,7 +88,9 @@ class GCodeQueue;
 class FilamentMonitor;
 class RandomProbePointSet;
 class Logger;
-
+#ifdef BCN3D_DEV
+class TagReaderWriter;
+#endif
 #if SUPPORT_IOBITS
 class PortControl;
 #endif

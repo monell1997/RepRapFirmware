@@ -65,8 +65,16 @@ public:
 
 	int8_t GetChamberHeater(size_t index) const					// Get a chamber heater number
 	pre(index < NumChamberHeaters);
+
+#ifdef BCN3D_DEV
+	int8_t GetSlaveChamberHeater(int8_t heater)					// Get a chamber heater number
+		pre(heater < NumHeaters);
+	void SetChamberHeater(size_t index, int8_t heater, int8_t slave)			// Set a chamber heater number
+	pre(index < NumChamberHeaters; -1 <= heater; heater < NumHeaters ; slave < NumHeaters);
+#else
 	void SetChamberHeater(size_t index, int8_t heater)			// Set a chamber heater number
 	pre(index < NumChamberHeaters; -1 <= heater; heater < NumHeaters);
+#endif
 	bool IsChamberHeater(int8_t heater) const;					// Check if this heater is a chamber heater
 
 	void SetActiveTemperature(int8_t heater, float t);
@@ -183,6 +191,9 @@ private:
 	bool coldExtrude;											// Is cold extrusion allowed?
 	int8_t bedHeaters[NumBedHeaters];							// Indices of the hot bed heaters to use or -1 if none is available
 	int8_t chamberHeaters[NumChamberHeaters];					// Indices of the chamber heaters to use or -1 if none is available
+#ifdef BCN3D_DEV
+	int8_t slavechamberHeaters[NumChamberHeaters];					// Indices of the slave heaters for the chamber to use or -1 if none is available
+#endif
 	int8_t heaterBeingTuned;									// which PID is currently being tuned
 	int8_t lastHeaterTuned;										// which PID we last finished tuning
 };

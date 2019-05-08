@@ -186,7 +186,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	gCodes = new GCodes(*platform);
 	move = new Move();
 	heat = new Heat(*platform);
-
+	tagreaderwriter = new TagReaderWriter(0);
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
 #endif
@@ -211,7 +211,7 @@ void RepRap::Init()
 {
 	toolListMutex.Create("ToolList");
 	messageBoxMutex.Create("MessageBox");
-
+	//ktagreaderwriter->begin();
 	platform->Init();
 	network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
