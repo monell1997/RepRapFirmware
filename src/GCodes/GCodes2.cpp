@@ -4458,6 +4458,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 		platform.MessageF(GenericMessage, "Message received \n");
 		break;
+	case 1040:
+		reprap.GetSpoolSupplier().SendtoPrinter();
+		break;
 	#endif
 	default:
 		result = GCodeResult::warningNotSupported;

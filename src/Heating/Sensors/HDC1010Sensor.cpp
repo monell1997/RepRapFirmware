@@ -124,8 +124,6 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 				//lastResult = sts;
 				reprap.GetPlatform().MessageF(GenericMessage, "Restart I2C\n");
 				RestartI2C();
-				delay(10);
-				TryInitI2C();
 				t = lastTemperature;
 			}
 			else

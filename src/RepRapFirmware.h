@@ -90,6 +90,7 @@ class RandomProbePointSet;
 class Logger;
 #ifdef BCN3D_DEV
 class TagReaderWriter;
+class SpoolSupplier;
 #endif
 #if SUPPORT_IOBITS
 class PortControl;

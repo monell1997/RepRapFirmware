@@ -186,7 +186,10 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	gCodes = new GCodes(*platform);
 	move = new Move();
 	heat = new Heat(*platform);
+#ifdef BCN3D_DEV
 	tagreaderwriter = new TagReaderWriter(0);
+	spoolsupplier = new SpoolSupplier();
+#endif
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
 #endif

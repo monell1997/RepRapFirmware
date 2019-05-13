@@ -47,7 +47,7 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 			bValues[i] = (uint8_t)command[i];
 		}
 
-		MutexLocker lock(Tasks::GetI2CMutex());
+		MutexLocker lock(Tasks::GetI2CMutex(),20);
 		if (!lock)
 		{
 			return TemperatureError::busBusy;

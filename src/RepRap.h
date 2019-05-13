@@ -27,6 +27,7 @@ Licence: GPL
 #include "RTOSIface/RTOSIface.h"
 #ifdef BCN3D_DEV
 #include "RFID/TagReaderWriter.h"
+#include "SpoolSupplier/SpoolSupplier.h"
 #endif
 enum class ResponseSource
 {
@@ -102,6 +103,7 @@ public:
 	PrintMonitor& GetPrintMonitor() const;
 #ifdef BCN3D_DEV
 	TagReaderWriter& GetTagReaderWriter() const;
+	SpoolSupplier& GetSpoolSupplier() const;
 #endif
 #if SUPPORT_IOBITS
  	PortControl& GetPortControl() const;
@@ -165,6 +167,7 @@ private:
  	PrintMonitor* printMonitor;
 #ifdef BCN3D_DEV
  	TagReaderWriter* tagreaderwriter;
+ 	SpoolSupplier* spoolsupplier;
 #endif
 #if SUPPORT_IOBITS
  	PortControl *portControl;
@@ -219,6 +222,7 @@ inline Scanner& RepRap::GetScanner() const { return *scanner; }
 inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
 #ifdef BCN3D_DEV
 inline TagReaderWriter& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
+inline SpoolSupplier& RepRap::GetSpoolSupplier() const { return *spoolsupplier; }
 #endif
 #if SUPPORT_IOBITS
 inline PortControl& RepRap::GetPortControl() const { return *portControl; }
