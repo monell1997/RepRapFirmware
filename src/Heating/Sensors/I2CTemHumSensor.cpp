@@ -85,4 +85,8 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 	return TemperatureError::badResponse;
 
 }
+void I2CTemHumSensor::RestartI2C(){
+	i2cInitialised = false;
+	InitI2C();
+}
 #endif

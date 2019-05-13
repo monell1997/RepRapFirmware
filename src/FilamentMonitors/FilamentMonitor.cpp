@@ -206,12 +206,17 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 				fromIsr = false;
 				isrMillis = 0;
 			}
+#ifdef BCN3D_DEV
+			if ((gCodes.IsReallyPrinting() && !gCodes.IsSimulating()) || gCodes.IsChangingFilament())
+#else
 			if (gCodes.IsReallyPrinting() && !gCodes.IsSimulating())
+#endif
 			{
 				const float extrusionCommanded = (float)extruderStepsCommanded/reprap.GetPlatform().DriveStepsPerUnit(extruder + gCodes.GetTotalAxes());
 				const FilamentSensorStatus fstat = fs.Check(isPrinting, fromIsr, isrMillis, extrusionCommanded);
 				if (fstat != FilamentSensorStatus::ok)
 				{
+
 					if (reprap.Debug(moduleFilamentSensors))
 					{
 						debugPrintf("Filament error: extruder %u reports %s\n", extruder, FilamentMonitor::GetErrorMessage(fstat));
@@ -220,6 +225,13 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 					{
 						gCodes.FilamentError(extruder, fstat);
 					}
+#ifdef BCN3D_DEV
+					if(abs(extrusionCommanded) > 0 && gCodes.IsChangingFilament()){
+						reprap.GetMove().Exit(); //Cancel all moves and reset
+						reprap.GetMove().Init();
+
+					}
+#endif
 				}
 			}
 			else

@@ -323,6 +323,17 @@ bool Heat::IsBedHeater(int8_t heater) const
 	return false;
 }
 #ifdef BCN3D_DEV
+bool Heat::IsSlaveChamberHeater(int8_t heater) const
+{
+	for (int8_t slavechamberHeater : slavechamberHeaters)
+	{
+		if (heater == slavechamberHeater)
+		{
+			return true;
+		}
+	}
+	return false;
+}
 int8_t Heat::GetSlaveChamberHeater(int8_t heater)
 {
 	size_t i = 0;

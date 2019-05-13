@@ -468,6 +468,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 						}
 					}else{
 						axesToSenseLength_flag = false;
+						reprap.GetPlatform().MessageF(ErrorMessage, "Endstop\n");
 					}
 
 				}

@@ -184,6 +184,9 @@ public:
 	bool IsResuming() const;
 	bool IsRunning() const;
 	bool IsReallyPrinting() const;										// Return true if we are printing from SD card and not pausing, paused or resuming
+#ifdef BCN3D_DEV
+	bool IsChangingFilament() const { return isChangingFilament; }		// Return true if we are changing filament
+#endif
 	bool IsSimulating() const { return simulationMode != 0; }
 	bool IsDoingToolChange() const { return doingToolChange; }
 	bool IsHeatingUp() const;											// Return true if the SD card print is waiting for a heater to reach temperature
@@ -590,15 +593,20 @@ private:
 	FilamentSensorStatus lastFilamentError;
 	size_t lastFilamentErrorExtruder;
 
+	// Changing Filament
+#ifdef BCN3D_DEV
+	bool isChangingFilament;
+#endif
+
 	// Laser
 	float laserMaxPower;
 
-	#ifdef BCN3D_DEV
+#ifdef BCN3D_DEV
 	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
 	int xyz_Bcn3dCalib_Samples_Count = 0;						// Must count 4
 	float xyz_Bcn3dCalib_SaveMotorStepPos[4][MaxAxes]; 	// Save 2 coordinates
 	bool xyz_Bcn3dCalib_Save = false;
-	#endif
+#endif
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
 	uint32_t heaterFaultTime;					// when the heater fault occurred

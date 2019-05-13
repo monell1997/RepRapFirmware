@@ -4018,7 +4018,23 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("No tool selected");
 		}
 		break;
-
+#ifdef BCN3D_DEV
+	case 704://enable changing filament mode
+		{
+			bool seen = false;
+			bool value = false;
+			gb.TryGetBValue('S', value, seen);
+			if (seen)
+			{
+				isChangingFilament = value;
+				platform.MessageF(GenericMessage, "Changing filament state: ");
+				platform.MessageF(GenericMessage, isChangingFilament?"On\n":"Off\n");
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+		}
+		break;
+#endif
 #if SUPPORT_SCANNER
 	case 750: // Enable 3D scanner extension
 		reprap.GetScanner().Enable();

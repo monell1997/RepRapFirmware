@@ -19,6 +19,7 @@ class I2CTemHumSensor : public TemperatureSensor
 protected:
 	I2CTemHumSensor(unsigned int channel, const char *name);
 	void InitI2C();
+	void RestartI2C();
 	TemperatureError DoI2CTransaction(const uint8_t command[], size_t numToSend, size_t numToReceive, uint32_t& rslt, uint16_t addr) const
 		pre(numToSend <= 8);
 

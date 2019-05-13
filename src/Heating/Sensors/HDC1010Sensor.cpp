@@ -71,11 +71,18 @@ GCodeResult HDC1010Sensor::Configure(unsigned int mCode, unsigned int heater, GC
 TemperatureError HDC1010Sensor::TryInitI2C() const
 {
 
-	const uint8_t command_1[3] = {0x02, 0x00, 0x00};			// Read Memory from dir 0x50 tem
+	const uint8_t command_1[3] = {0x02, 0x80, 0x00};			// Configure device reset software
+	const uint8_t command_2[3] = {0x02, 0x00, 0x00};			// Configure device normal operation
 	//const uint16_t addr = 80;//default dir
 	uint32_t rawVal;
 
 	TemperatureError sts = DoI2CTransaction(command_1, ARRAY_SIZE(command_1), 0, rawVal, addr);
+
+	if(sts!=TemperatureError::success) return sts;
+
+	delay(5);
+
+	sts = DoI2CTransaction(command_2, ARRAY_SIZE(command_2), 0, rawVal, addr);
 
 	return sts;
 }
@@ -89,12 +96,14 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 	// Sample time slot for hum HDC1010Sensor sensor with addr 65 is millis() + 1100
 	// Sample time slot for hum HDC1010Sensor sensor with addr 66 is millis() + 1200
 	// Sample time slot for hum HDC1010Sensor sensor with addr 67 is millis() + 1300
-	if (inInterrupt() || millis()+(temorhum?1000:0)+100*(addr-64) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
+	if (inInterrupt() || millis()-((temorhum?1000:0)+250*(addr-64)) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
 	{
 		t = lastTemperature;
 	}
 	else
 	{
+		lastReadingTime = millis();
+
 		static bool rw = false; // request data
 		static const uint8_t command[1] = {0x01};			// Read Memory from dir 0x52 hum
 		static const uint8_t command2[1] = {0x00};			// Read Memory from dir 0x52 hum
@@ -103,6 +112,7 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 		TemperatureError sts;
 		uint32_t rawVal;
 		//reprap.GetPlatform().MessageF(GenericMessage, "%u millis(): %lu \n",addr, millis());
+
 		if(rw){
 			if(temorhum){
 			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
@@ -111,12 +121,16 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 			}
 			if (sts != TemperatureError::success)
 			{
-				lastResult = sts;
-				lastReadingTime = (temorhum?1000:0)+100*(addr-64)+millis()-Default_delay;
+				//lastResult = sts;
+				reprap.GetPlatform().MessageF(GenericMessage, "Restart I2C\n");
+				RestartI2C();
+				delay(10);
+				TryInitI2C();
+				t = lastTemperature;
 			}
 			else
 			{
-				lastReadingTime = (temorhum?1000:0)+100*(addr-64)+millis()-Default_delay;
+
 				if(temorhum){
 					t = ((float) rawVal *100.0 / 65536.0);
 				}else{
@@ -135,16 +149,15 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 
 			rw = false;
 		}else{
-
 			if(temorhum){
 			sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data
 			}else{
 			sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data
 			}
-			lastResult = sts;
+			//lastResult = sts;
 			t = lastTemperature;
 			rw = true;
-			lastReadingTime = (temorhum?1000:0)+100*(addr-64) + millis()-(MinimumReadInterval-Default_delay);
+
 		}
 		//delay(10);
 

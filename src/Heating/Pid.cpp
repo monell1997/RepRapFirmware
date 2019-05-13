@@ -247,7 +247,7 @@ void PID::Spin()
 			const float targetTemperature = (active) ? activeTemperature : standbyTemperature;
 			const float error = targetTemperature - temperature;
 #ifdef BCN3D_DEV
-			if(reprap.GetHeat().IsChamberHeater(heater) && (reprap.GetHeat().GetSlaveChamberHeater(heater) != heater))gotDerivative = false;
+			if((reprap.GetHeat().IsChamberHeater(heater) && reprap.GetHeat().GetSlaveChamberHeater(heater) != heater) || reprap.GetHeat().GetSlaveChamberHeater(heater))gotDerivative = false;
 #endif
 			// Do the heating checks
 			switch(mode)
@@ -256,7 +256,7 @@ void PID::Spin()
 				{
 #ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
-						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 100);
+						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120);
 						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 					}
 #endif
@@ -299,8 +299,13 @@ void PID::Spin()
 				{
 #ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
-						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), targetTemperature);
-						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+						if((temperature - targetTemperature) > 0.2){
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0);
+							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+						}else if((temperature - targetTemperature) < -0.2){
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120);
+							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+						}
 					}
 #endif
 					if (fabsf(error) > maxTempExcursion && temperature > MaxAmbientTemperature)

@@ -67,6 +67,7 @@ public:
 	pre(index < NumChamberHeaters);
 
 #ifdef BCN3D_DEV
+	bool IsSlaveChamberHeater(int8_t heater) const;
 	int8_t GetSlaveChamberHeater(int8_t heater)					// Get a chamber heater number
 		pre(heater < NumHeaters);
 	void SetChamberHeater(size_t index, int8_t heater, int8_t slave)			// Set a chamber heater number
