@@ -424,6 +424,12 @@ void RepRap::Spin()
 	spinningModule = moduleFilamentSensors;
 	FilamentMonitor::Spin();
 
+#ifdef BCN3D_DEV
+	ticksInSpinState = 0;
+	spinningModule = moduleSpoolSupplier;
+	spoolsupplier->Spin();
+#endif
+
 #if SUPPORT_12864_LCD
 	ticksInSpinState = 0;
 	spinningModule = moduleDisplay;

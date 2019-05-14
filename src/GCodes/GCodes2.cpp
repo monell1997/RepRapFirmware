@@ -19,6 +19,7 @@
 #include "RepRap.h"
 #include "Tools/Tool.h"
 #include "FilamentMonitors/FilamentMonitor.h"
+#include "SpoolSupplier/SpoolSupplier.h"
 #include "General/IP4String.h"
 #include "Movement/StepperDrivers/DriverMode.h"
 #include "Version.h"
@@ -4450,16 +4451,28 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		break;
 	#ifdef BCN3D_DEV
 	case 1010:
-
-		platform.MessageF(GenericMessage, "Sending message \n");
-		platform.MessageF(Uart0_duet2, "M1011");
+		//platform.MessageF(GenericMessage, "Request SpoolSupplier Status\n");
+		platform.MessageF(Uart0_duet2, "M1040\n");
 		break;
 	case 1011:
-
 		platform.MessageF(GenericMessage, "Message received \n");
 		break;
 	case 1040:
+		//platform.MessageF(GenericMessage, "Sending SpoolSupplier Status\n");
 		reprap.GetSpoolSupplier().SendtoPrinter();
+		break;
+	case 1060://enable changing filament mode
+		{
+			bool seen = false;
+			bool value = false;
+			gb.TryGetBValue('S', value, seen);
+			if (seen)
+			{
+				reprap.GetSpoolSupplier().Set_Master_Status(value);
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+		}
 		break;
 	#endif
 	default:

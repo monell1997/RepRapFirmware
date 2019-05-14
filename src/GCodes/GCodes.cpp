@@ -1656,9 +1656,12 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 	else if (&gb == auxGCode)
 	{
 		// Aux serial port (typically PanelDue)
+
 		if (auxInput->FillBuffer(auxGCode))
 		{
-			gb.PrintCommand(reply);
+			//platform.MessageF(GenericMessage,"Recv:\n");
+			platform.MessageF(GenericMessage,gb.Buffer());
+			//gb.PrintCommand(reply);
 			// by default we assume no PanelDue is attached
 			platform.SetAuxDetected();
 		}
