@@ -1659,9 +1659,7 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 
 		if (auxInput->FillBuffer(auxGCode))
 		{
-			//platform.MessageF(GenericMessage,"Recv:\n");
-			platform.MessageF(GenericMessage,gb.Buffer());
-			//gb.PrintCommand(reply);
+
 			// by default we assume no PanelDue is attached
 			platform.SetAuxDetected();
 		}

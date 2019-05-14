@@ -98,6 +98,7 @@ void SpoolSupplier::Spin(void){
 				current_temperature[i] = heat.GetTemperature(heater);
 				}
 			}
+			//SendtoPrinter();
 			lastTime = millis();
 		}
 	}

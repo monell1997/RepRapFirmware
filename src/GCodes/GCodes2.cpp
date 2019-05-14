@@ -4461,7 +4461,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		//platform.MessageF(GenericMessage, "Sending SpoolSupplier Status\n");
 		reprap.GetSpoolSupplier().SendtoPrinter();
 		break;
-	case 1060://enable changing filament mode
+	case 1060://enable Edurne MODE
 		{
 			bool seen = false;
 			bool value = false;
@@ -4469,6 +4469,22 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			if (seen)
 			{
 				reprap.GetSpoolSupplier().Set_Master_Status(value);
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+		}
+		break;
+	case 1061://enable Edurne MODE
+		{
+			int32_t values[N_Spools];
+			size_t NumtoRecv = N_Spools;
+			if (gb.Seen('B'))
+			{
+
+				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Spool_id(i,(unsigned int)values[i]);
+				}
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 			}
