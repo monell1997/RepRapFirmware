@@ -298,6 +298,8 @@ private:
 	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
 	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
 	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to configure SPI for RFID r/w
+	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
+	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
 	#endif
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
@@ -651,6 +653,8 @@ private:
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
 	static constexpr const char* PEEL_MOVE_G = "peel-move.g";
 	#ifdef BCN3D_DEV
+	static constexpr const char* EDURNE_LOAD_G  = "loadroutine.g";
+	static constexpr const char* EDURNE_UNLOAD_G = "unloadroutine.g";
 	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
 	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
 	#endif

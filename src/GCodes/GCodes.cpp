@@ -1659,7 +1659,7 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 
 		if (auxInput->FillBuffer(auxGCode))
 		{
-
+			//platform.MessageF(HttpMessage, gb.Buffer()); //debug
 			// by default we assume no PanelDue is attached
 			platform.SetAuxDetected();
 		}

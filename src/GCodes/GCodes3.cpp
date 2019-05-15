@@ -188,6 +188,35 @@ GCodeResult GCodes::SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, si
 
 	return GCodeResult::ok;
 }
+GCodeResult GCodes::Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 15/05/2019
+{
+	int32_t spool_value = 0;
+	if (gb.Seen('C'))
+	{
+		spool_value = gb.GetIValue();
+	}else return GCodeResult::badOrMissingParameter;
+
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("spoolprep%d.g", (int)spool_value);
+
+	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
+
+	return GCodeResult::ok;
+}
+GCodeResult GCodes::Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 15/05/2019
+{
+	bool seen = false;
+	bool value = false;
+	gb.TryGetBValue('S', value, seen);
+	if (!seen)
+	{
+		return GCodeResult::badOrMissingParameter;
+	}
+
+	DoFileMacro(*fileGCode, value ? EDURNE_LOAD_G : EDURNE_UNLOAD_G, true, 98); // running a system macro
+
+	return GCodeResult::ok;
+}
 #endif
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)

@@ -4035,6 +4035,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 		}
 		break;
+	case 705://prepare load routine Edurne
+		result = Prep_FilamentLoad_Edurne(gb,reply);
+		break;
+	case 706://exec load routine Edurne
+		result = Exec_FilamentLoad_Edurne(gb,reply);
+		break;
 #endif
 #if SUPPORT_SCANNER
 	case 750: // Enable 3D scanner extension
@@ -4452,14 +4458,19 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	#ifdef BCN3D_DEV
 	case 1010:
 		//platform.MessageF(GenericMessage, "Request SpoolSupplier Status\n");
-		platform.MessageF(Uart0_duet2, "M1040\n");
+		reprap.GetSpoolSupplier().SendtoPrinter(HttpMessage);
 		break;
 	case 1011:
-		platform.MessageF(GenericMessage, "Message received \n");
+		reprap.GetSpoolSupplier().SendtoPrinter(ImmediateDirectUart0_duet2Message);
+		break;
+	case 1012:
+		platform.MessageF(Uart0_duet2, "M1061 B21992 R100 C27.2 S0.0\n");
 		break;
 	case 1040:
-		//platform.MessageF(GenericMessage, "Sending SpoolSupplier Status\n");
-		reprap.GetSpoolSupplier().SendtoPrinter();
+		reprap.GetSpoolSupplier().PrintJSON(HttpMessage);
+		break;
+	case 1041:
+		reprap.GetSpoolSupplier().PrintJSON(ImmediateDirectUart0_duet2Message);
 		break;
 	case 1060://enable Edurne MODE
 		{
@@ -4474,20 +4485,53 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 		}
 		break;
-	case 1061://enable Edurne MODE
+	case 1061://Set edurne parameters
 		{
 			int32_t values[N_Spools];
+			float temps_val[N_Spools];
 			size_t NumtoRecv = N_Spools;
 			if (gb.Seen('B'))
 			{
 
-				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+				gb.GetIntArray(values, NumtoRecv, false);		// Spool id
 				for(size_t i = 0; i<NumtoRecv;i++){
 					reprap.GetSpoolSupplier().Set_Spool_id(i,(unsigned int)values[i]);
 				}
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 			}
+			if (gb.Seen('C'))
+			{
+
+				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Temp
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Update_Current_Temperature(i,temps_val[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+			if (gb.Seen('S'))
+			{
+
+				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Target
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Target_Temperature(i,temps_val[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+			if (gb.Seen('R'))
+			{
+
+				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Spool_Remaining(i,(uint8_t)values[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+
+
 		}
 		break;
 	#endif

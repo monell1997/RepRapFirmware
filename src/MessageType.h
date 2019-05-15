@@ -35,6 +35,7 @@ enum MessageType : uint16_t
 	GenericMessage = UsbMessage | LcdMessage | HttpMessage | TelnetMessage,	// A message that is to be sent to the web, Telnet, USB and panel
 	LoggedGenericMessage = GenericMessage | LogMessage,						// A GenericMessage that is also logged
 	DirectLcdMessage = LcdMessage | RawMessageFlag,							// Direct message to LCD
+	ImmediateDirectUart0_duet2Message = Uart0_duet2 | RawMessageFlag,				// Immediate Direct message to LCD
  	ErrorMessage = GenericMessage | LogMessage | ErrorMessageFlag,			// An error message
 	WarningMessage = GenericMessage | LogMessage | WarningMessageFlag,		// A warning message
 	FirmwareUpdateMessage = UsbMessage | ImmediateLcdMessage,				// A message that conveys progress of a firmware update
