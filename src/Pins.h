@@ -71,7 +71,7 @@
 #endif
 
 #ifndef SUPPORT_TMC2660
-# define SUPPORT_TMC2660		0
+# define SUPPORT_TMC2660		1
 #endif
 
 #ifndef SUPPORT_TMC22xx

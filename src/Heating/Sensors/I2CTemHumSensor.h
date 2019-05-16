@@ -25,7 +25,7 @@ protected:
 
 	//sspi_device device;
 	uint32_t lastReadingTime;
-	float lastTemperature;
+	float lastTemperature, lastHumidity;
 	TemperatureError lastResult;
 private:
 	bool i2cInitialised;

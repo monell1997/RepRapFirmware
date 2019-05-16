@@ -52,6 +52,7 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 		{
 			return TemperatureError::busBusy;
 		}
+
 		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
 		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
 		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));

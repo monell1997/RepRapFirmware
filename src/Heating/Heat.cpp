@@ -28,6 +28,10 @@ Licence: GPL
 # include "Sensors/DhtSensor.h"
 #endif
 
+#ifdef BCN3D_DEV
+# include "Sensors/HDC1011Sensor.h"
+#endif
+
 #ifdef RTOS
 
 # include "Tasks.h"
@@ -150,7 +154,10 @@ void Heat::Init()
 	// Initialise static fields of the DHT sensor
 	DhtSensorHardwareInterface::InitStatic();
 #endif
-
+#ifdef BCN3D_DEV
+	// Initialise static fields of the HDC sensor
+	HdcSensorHardwareInterface::InitStatic();
+#endif
 	extrusionMinTemp = HOT_ENOUGH_TO_EXTRUDE;
 	retractionMinTemp = HOT_ENOUGH_TO_RETRACT;
 	coldExtrude = false;

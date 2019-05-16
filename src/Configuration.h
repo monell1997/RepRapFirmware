@@ -161,6 +161,8 @@ constexpr unsigned int CpuTemperatureSenseChannel = 1000;  // Sensor 1000 is the
 constexpr unsigned int FirstTmcDriversSenseChannel = 1001; // Sensors 1001..1002 are the TMC2660 driver temperature sense
 constexpr unsigned int NumTmcDriversSenseChannels = 2;	// Sensors 1001..1002 are the TMC2660 driver temperature sense
 constexpr unsigned int FirstHDC1010Channel = 1010; 		// I2C sensor temperature
+constexpr unsigned int FirstHDC1011TempChannel = 1050; 		// I2C sensor temperature
+constexpr unsigned int FirstHDC1011HumChannel = 1100; 		// I2C sensor hum
 
 // PWM frequencies
 constexpr unsigned int SlowHeaterPwmFreq = 10;			// slow PWM frequency for bed and chamber heaters, compatible with DC/AC SSRs
@@ -368,5 +370,11 @@ constexpr char FILE_LIST_BRACKET = '"';
 
 // Firmware Mod definitions
 #define BCN3D_DEV
+
+#ifdef BCN3D_DEV
+	#ifndef RTOS
+		#define RTOS
+	#endif
+#endif
 
 #endif
