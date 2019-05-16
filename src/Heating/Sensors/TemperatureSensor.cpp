@@ -20,7 +20,7 @@
 
 #ifdef BCN3D_DEV
 //#include "HDC1010Sensor.h"
-#include "HDC1011Sensor.h"
+#include <Heating/Sensors/HdcSensor.h>
 #endif
 
 // Constructor

@@ -6,7 +6,7 @@
  */
 
 
-#include "HDC1011Sensor.h"
+#include <Heating/Sensors/HdcSensor.h>
 #include "RepRap.h"
 #include "GCodes/GCodeBuffer.h"
 
@@ -51,7 +51,7 @@ TemperatureError HdcSensorHardwareInterface::GetTemperatureOrHumidity(float& t, 
 {
 	MutexLocker lock(hdcMutex);
 
-	if (relativeChannel >= MaxSpiTempSensors || activeSensors[relativeChannel] == nullptr)
+	if (relativeChannel >= Maxi2cTempSensors || activeSensors[relativeChannel] == nullptr)
 	{
 		reply.copy("invalid channel");
 		return GCodeResult::error;
@@ -166,11 +166,12 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 			bValues[i] = (uint8_t)command[i];
 		}
 
-		/*MutexLocker lock(Tasks::GetI2CMutex(),20);
+		MutexLocker lock(Tasks::GetI2CMutex());
 		if (!lock)
 		{
-			return TemperatureError::busBusy;
-		}*/
+			rslt = 0xFFFF;
+			return;
+		}
 		reprap.GetPlatform().InitI2c();
 		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
 		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
@@ -214,35 +215,6 @@ void HdcSensorHardwareInterface::TakeReading()
 {
 	if (type != HdcSensorType::none)			// if sensor has been configured
 	{
-		/*
-		// Send the start bit. This must be at least 18ms for the DHT11, 0.8ms for the DHT21, and 1ms long for the DHT22.
-		IoPort::SetPinMode(sensorPin, OUTPUT_LOW);
-		delay(1);
-
-		{
-			TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
-
-			// End the start signal by setting data line high. the sensor will respond with the start bit in 20 to 40us.
-			// We need only force the data line high long enough to charge the line capacitance, after that the pullup resistor keeps it high.
-			IoPort::WriteDigital(sensorPin, HIGH);		// this will generate an interrupt, but we will ignore it
-			delayMicroseconds(3);
-
-			// Now start reading the data line to get the value from the DHT sensor
-			IoPort::SetPinMode(sensorPin, INPUT_PULLUP);
-
-			// It appears that switching the pin to an output disables the interrupt, so we need to call attachInterrupt here
-			// We are likely to get an immediate interrupt at this point corresponding to the low-to-high transition. We must ignore this.
-			numPulses = ARRAY_SIZE(pulses);		// tell the ISR not to collect data yet
-			attachInterrupt(sensorPin, HdcDataTransition, INTERRUPT_MODE_CHANGE, this);
-			lastPulseTime = 0;
-			numPulses = 0;						// tell the ISR to collect data
-		}
-
-		// Wait for the incoming signal to be read by the ISR (1 start bit + 40 data bits), or until timeout.
-		// We don't have the ISR wake the process up, because that would require the priority of the pin change interrupt to be reduced.
-		// So we just delay for long enough for the data to have been sent. It takes typically 4 to 5ms.
-
-		 */
 
 		TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
 		delay(1);
@@ -334,51 +306,13 @@ void HdcSensorHardwareInterface::TakeReading()
 // Else return the TemperatureError code but do not update the readings.
 TemperatureError HdcSensorHardwareInterface::ProcessReadings()
 {
-/*
- 	 // Check enough bits received and check start bit
-	if (numPulses != ARRAY_SIZE(pulses) || pulses[0] < MinimumOneBitStepClocks)
-	{
-//		debugPrintf("pulses %u p0 %u\n", numPulses, (unsigned int)pulses[0]);
-		return TemperatureError::ioError;
-	}
-
-	// Reset 40 bits of received data to zero
-	uint8_t data[5] = { 0, 0, 0, 0, 0 };
-
-	// Inspect each high pulse and determine which ones are 0 (less than 50us) or 1 (more than 50us). Ignore the start bit.
-	for (size_t i = 0; i < 40; ++i)
-	{
-		data[i / 8] <<= 1;
-		if (pulses[i + 1] >= MinimumOneBitStepClocks)
-		{
-			data[i / 8] |= 1;
-		}
-	}
-*/
-//	debugPrintf("Data: %02x %02x %02x %02x %02x\n", data[0], data[1], data[2], data[3], data[4]);
-	// Verify checksum
-	//if (((data[0] + data[1] + data[2] + data[3]) & 0xFF) != data[4])
-	//{
-//		debugPrintf("Cks err\n");
-		//return TemperatureError::ioError;
-	//}
 
 	// Generate final results
+	reprap.GetPlatform().MessageF(HttpMessage, "Get Info\n");
 	switch (type)
 	{
 	case HdcSensorType::Hdc1010:
-		/*lastHumidity = ((data[0] * 256) + data[1]) * 0.1;
-		lastTemperature = (((data[2] & 0x7F) * 256) + data[3]) * 0.1;
-		if (data[2] & 0x80)
-		{
-			lastTemperature *= -1.0;
-		}
-		*/
-		//if(temorhum){
-		//	t = ((float) rawVal *100.0 / 65536.0);
-		//}else{
-		//	t = ((float) rawVal *165.0 / 65536.0)-40.0;
-		//}
+
 		lastHumidity = (recv_hum) * 100.0 / 65536.0;
 		lastTemperature = (recv_temp * 165.0 / 65536.0 )-40.0;
 		return TemperatureError::success;
@@ -412,6 +346,7 @@ HdcTemperatureSensor::~HdcTemperatureSensor()
 
 TemperatureError HdcTemperatureSensor::TryGetTemperature(float& t)
 {
+	//reprap.GetPlatform().MessageF(HttpMessage, "Get Info\n");
 	return HdcSensorHardwareInterface::GetTemperatureOrHumidity(GetSensorChannel() - FirstHDC1011TempChannel, t, false);
 }
 

@@ -5,8 +5,8 @@
  *      Author: agarciamoreno
  */
 
-#ifndef SRC_HEATING_SENSORS_HDC1011SENSOR_H_
-#define SRC_HEATING_SENSORS_HDC1011SENSOR_H_
+#ifndef SRC_HEATING_SENSORS_HDCSENSOR_H_
+#define SRC_HEATING_SENSORS_HDCSENSOR_H_
 
 
 #include "RepRapFirmware.h"
@@ -97,4 +97,4 @@ protected:
 
 #endif
 
-#endif /* SRC_HEATING_SENSORS_HDC1011SENSOR_H_ */
+#endif /* SRC_HEATING_SENSORS_HDCSENSOR_H_ */

@@ -29,7 +29,7 @@ Licence: GPL
 #endif
 
 #ifdef BCN3D_DEV
-# include "Sensors/HDC1011Sensor.h"
+# include <Heating/Sensors/HdcSensor.h>
 #endif
 
 #ifdef RTOS
