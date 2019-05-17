@@ -13,7 +13,7 @@
 #ifdef BCN3D_DEV
 
 constexpr uint32_t MinimumReadInterval = 2000;		// ms
-constexpr uint32_t MaximumReadTime = 20;			// ms
+constexpr uint32_t MaximumReadTime = 10;			// ms
 constexpr uint32_t MinimumOneBitLength = 50;		// microseconds
 
 # include "Tasks.h"
@@ -165,14 +165,16 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 		{
 			bValues[i] = (uint8_t)command[i];
 		}
-
+/*
 		MutexLocker lock(Tasks::GetI2CMutex());
 		if (!lock)
 		{
 			rslt = 0xFFFF;
 			return;
 		}
+*/
 		reprap.GetPlatform().InitI2c();
+		//MutexLocker lock(hdcMutex);
 		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
 		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
 		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));
@@ -216,50 +218,48 @@ void HdcSensorHardwareInterface::TakeReading()
 	if (type != HdcSensorType::none)			// if sensor has been configured
 	{
 
-		TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
-		delay(1);
+		//TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
 
-		//const uint8_t command_1[3] = {0x02, 0x80, 0x00};			// Configure device reset software
-		const uint8_t command_2[3] = {0x02, 0x00, 0x00};			// Configure device normal operation
-		//const uint16_t addr = 80;//default dir
+		const uint8_t comand_start[3] = {0x02, 0x00, 0x00};			// Configure device normal operation and acquire in sequence, Temperature First
+		const uint8_t comand_temp[1] = {0x00};			// Read Memory from temp
+		//const uint8_t comand_hum[1] = {0x01};			// Read Memory from hum
+
 		uint32_t rawVal;
 
-		DoI2CTransaction(command_2, ARRAY_SIZE(command_2), 0, rawVal, sensoraddr);
-		delay(5);
-
-		static const uint8_t command[1] = {0x01};			// Read Memory from dir 0x52 hum
-		static const uint8_t command2[1] = {0x00};			// Read Memory from dir 0x52 hum
-
-
-
-		//reprap.GetPlatform().MessageF(GenericMessage, "%u millis(): %lu \n",addr, millis());
+		// Sensor Setup
+		//TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
+		DoI2CTransaction(comand_start, ARRAY_SIZE(comand_start), 0, rawVal, sensoraddr);
 
 		//Get Tem
 
-		DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, sensoraddr); //request data
+		DoI2CTransaction(comand_temp, ARRAY_SIZE(comand_temp), 0, rawVal, sensoraddr); //request data
 
 		delay(MaximumReadTime);
 
-		DoI2CTransaction(command,0, 2, rawVal, sensoraddr);
+		DoI2CTransaction(comand_temp,0, 2, rawVal, sensoraddr);
 
-		recv_temp = (uint16_t)rawVal;
-
-		delay(1);
-
+		recv_temp = (uint16_t)(rawVal);
+		recv_hum = recv_temp;
+		/*
+		recv_temp = (uint16_t)(rawVal>>16);
+		recv_hum = (uint16_t)(rawVal && 0xffff);*/
+/*
 		//Get Hum
 
-		DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, sensoraddr); //request data
+		DoI2CTransaction(comand_hum, ARRAY_SIZE(comand_hum), 0, rawVal, sensoraddr); //request data
 
 		delay(MaximumReadTime);
 
-		DoI2CTransaction(command2,0, 2, rawVal, sensoraddr);
+		DoI2CTransaction(comand_hum,0, 2, rawVal, sensoraddr);
 
 		recv_hum = (uint16_t)rawVal;
+*/
 
-
-		delay(MaximumReadTime);
+		//delay(MaximumReadTime);
 
 		//detachInterrupt(sensorPin);
+		//recv_temp = 33333;
+		//recv_hum = 32222;
 
 		// Attempt to convert the signal into temp+RH values
 		const TemperatureError rslt = ProcessReadings();
@@ -308,13 +308,17 @@ TemperatureError HdcSensorHardwareInterface::ProcessReadings()
 {
 
 	// Generate final results
-	reprap.GetPlatform().MessageF(HttpMessage, "Get Info\n");
+	//reprap.GetPlatform().MessageF(HttpMessage, "Get Info\n");
+	if(recv_temp < 100 || recv_temp > 65436)
+		return TemperatureError::hardwareError;
+	if(recv_hum < 100 || recv_hum > 65436)
+			return TemperatureError::hardwareError;
+
 	switch (type)
 	{
 	case HdcSensorType::Hdc1010:
-
-		lastHumidity = (recv_hum) * 100.0 / 65536.0;
 		lastTemperature = (recv_temp * 165.0 / 65536.0 )-40.0;
+		lastHumidity = (recv_hum) * 100.0 / 65536.0;
 		return TemperatureError::success;
 
 	default:
