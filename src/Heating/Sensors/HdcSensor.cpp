@@ -13,8 +13,7 @@
 #ifdef BCN3D_DEV
 
 constexpr uint32_t MinimumReadInterval = 2000;		// ms
-constexpr uint32_t MaximumReadTime = 10;			// ms
-constexpr uint32_t MinimumOneBitLength = 50;		// microseconds
+constexpr uint32_t MaximumReadTime = 8;			// ms
 
 # include "Tasks.h"
 
@@ -165,24 +164,28 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 		{
 			bValues[i] = (uint8_t)command[i];
 		}
+
 /*
 		MutexLocker lock(Tasks::GetI2CMutex());
 		if (!lock)
 		{
-			rslt = 0xFFFF;
+			rslt = 0xffff;
 			return;
 		}
 */
 		reprap.GetPlatform().InitI2c();
 		//MutexLocker lock(hdcMutex);
-		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
+		{
+			MutexLocker lock(Tasks::GetI2CMutex(),20);
+			bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
+		}
 		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
 		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));
 		reprap.GetPlatform().MessageF(GenericMessage, "numToSend I2C: %d\n", int(numToSend));
 		reprap.GetPlatform().MessageF(GenericMessage, "numToReceive I2C: %d\n", int(numToReceive));*/
 		if (bytesTransferred < numToSend)
 		{
-		rslt = 0xFFFF;
+		rslt = 0xffff;
 		return;
 
 		}
@@ -191,6 +194,7 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 
 			if (bytesTransferred == numToSend)
 			{
+				rslt = 0xffff;
 				return;
 			}
 			else
@@ -204,9 +208,9 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 			}
 		}
 		if(bytesTransferred != numToSend + numToReceive){
-			rslt = 0xFFFF;
+			rslt = 0xffff;
 		}
-		return ;
+		return;
 	}
 	return;
 
@@ -224,12 +228,13 @@ void HdcSensorHardwareInterface::TakeReading()
 		const uint8_t comand_temp[1] = {0x00};			// Read Memory from temp
 		//const uint8_t comand_hum[1] = {0x01};			// Read Memory from hum
 
-		uint32_t rawVal;
+		uint32_t rawVal = 33330; // 43.9ºC
 
 		// Sensor Setup
 		//TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
 		DoI2CTransaction(comand_start, ARRAY_SIZE(comand_start), 0, rawVal, sensoraddr);
 
+		delay(5);
 		//Get Tem
 
 		DoI2CTransaction(comand_temp, ARRAY_SIZE(comand_temp), 0, rawVal, sensoraddr); //request data
