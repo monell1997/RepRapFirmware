@@ -43,7 +43,7 @@ static_assert(CONF_HSMCI_XDMAC_CHANNEL == DmacChanHsmci, "mismatched DMA channel
 # include "task.h"
 
 # if SAME70
-#  include "DmacManager.h"
+#  include "Hardware/DmacManager.h"
 # endif
 
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
@@ -218,7 +218,7 @@ void RepRap::Init()
 	platform->Init();
 	network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
-	gCodes->Init();
+	gCodes->Init();						// must be called before Move::Init
 #if SUPPORT_CAN_EXPANSION
 	CanInterface::Init();
 #endif
@@ -266,6 +266,7 @@ void RepRap::Init()
 
 	platform->MessageF(UsbMessage, "%s Version %s dated %s\n", FIRMWARE_NAME, VERSION, DATE);
 
+#if !defined(DUET3_V05)					// Duet 3 0.5 has no local SD card
 	// Try to mount the first SD card
 	{
 		GCodeResult rslt;
@@ -282,14 +283,14 @@ void RepRap::Init()
 			// Run the configuration file
 			const char *configFile = platform->GetConfigFile();
 			platform->Message(UsbMessage, "\nExecuting ");
-			if (platform->GetMassStorage()->FileExists(platform->GetSysDir(), configFile))
+			if (platform->SysFileExists(configFile))
 			{
-				platform->MessageF(UsbMessage, "%s...", platform->GetConfigFile());
+				platform->MessageF(UsbMessage, "%s...", configFile);
 			}
 			else
 			{
-				platform->MessageF(UsbMessage, "%s (no configuration file found)...", platform->GetDefaultFile());
 				configFile = platform->GetDefaultFile();
+				platform->MessageF(UsbMessage, "%s (no configuration file found)...", configFile);
 			}
 
 			if (gCodes->RunConfigFile(configFile))
@@ -308,10 +309,11 @@ void RepRap::Init()
 		}
 		else
 		{
-			delay(3000);		// Wait a few seconds so users have a chance to see this
+			delay(3000);			// Wait a few seconds so users have a chance to see this
 			platform->MessageF(UsbMessage, "%s\n", reply.c_str());
 		}
 	}
+#endif
 	processingConfig = false;
 
 	// Enable network (unless it's disabled)
@@ -322,10 +324,6 @@ void RepRap::Init()
 # ifdef RTOS
 	HSMCI->HSMCI_IDR = 0xFFFFFFFF;	// disable all HSMCI interrupts
 	NVIC_EnableIRQ(HSMCI_IRQn);
-#  if SAME70
-	XDMAC->XDMAC_CHID[CONF_HSMCI_XDMAC_CHANNEL].XDMAC_CID = 0xFFFFFFFF;	// disable all XDMAC interrupts from the HSMCI channel
-	NVIC_EnableIRQ(XDMAC_IRQn);
-#  endif
 # endif
 #endif
 	platform->MessageF(UsbMessage, "%s is up and running.\n", FIRMWARE_NAME);
@@ -414,12 +412,6 @@ void RepRap::Spin()
 	spinningModule = modulePrintMonitor;
 	printMonitor->Spin();
 
-#ifdef DUET_NG
-	ticksInSpinState = 0;
-	spinningModule = moduleDuetExpansion;
-	DuetExpansion::Spin();
-#endif
-
 	ticksInSpinState = 0;
 	spinningModule = moduleFilamentSensors;
 	FilamentMonitor::Spin();
@@ -429,6 +421,7 @@ void RepRap::Spin()
 	spinningModule = moduleSpoolSupplier;
 	spoolsupplier->Spin();
 #endif
+
 
 #if SUPPORT_12864_LCD
 	ticksInSpinState = 0;
@@ -877,7 +870,11 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 	// So we report 9999.9 instead.
 
 	// First the user coordinates
+#if SUPPORT_WORKPLACE_COORDINATES
+	response->catf("],\"wpl\":%u,\"xyz\":", gCodes->GetWorkplaceCoordinateSystemNumber());
+#else
 	response->cat("],\"xyz\":");
+#endif
 	const float * const userPos = gCodes->GetUserPosition();
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; axis++)
@@ -1024,7 +1021,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 			ch = ',';
 		}
 		response->cat((ch == '[') ? "[]" : "]");
-		response->catf(",\"babystep\":%.3f}", (double)gCodes->GetBabyStepOffset());
+		response->catf(",\"babystep\":%.3f}", (double)gCodes->GetTotalBabyStepOffset(Z_AXIS));
 	}
 
 	// G-code reply sequence for webserver (sequence number for AUX is handled later)
@@ -1740,7 +1737,7 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 	response->cat((ch == '[') ? "[]" : "]");
 
 	// Send the baby stepping offset
-	response->catf(",\"babystep\":%.03f", (double)(gCodes->GetBabyStepOffset()));
+	response->catf(",\"babystep\":%.03f", (double)(gCodes->GetTotalBabyStepOffset(Z_AXIS)));
 
 	// Send the current tool number
 	response->catf(",\"tool\":%d", GetCurrentToolNumber());
@@ -2046,7 +2043,9 @@ bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, 
 	if (specificFile)
 	{
 		// Poll file info for a specific file
-		if (!platform->GetMassStorage()->GetFileInfo(platform->GetGCodeDir(), filename, info, quitEarly))
+		String<MaxFilenameLength> filePath;
+		MassStorage::CombineName(filePath.GetRef(), platform->GetGCodeDir(), filename);
+		if (!platform->GetMassStorage()->GetFileInfo(filePath.c_str(), info, quitEarly))
 		{
 			// This may take a few runs...
 			return false;

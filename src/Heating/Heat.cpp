@@ -163,7 +163,7 @@ void Heat::Init()
 	coldExtrude = false;
 
 #ifdef RTOS
-	heaterTask.Create(HeaterTask, "HEAT", nullptr, TaskBase::HeatPriority);
+	heaterTask.Create(HeaterTask, "HEAT", nullptr, TaskPriority::HeatPriority);
 #else
 	lastTime = millis() - HeatSampleIntervalMillis;		// flag the PIDS as due for spinning
 	active = true;
@@ -372,7 +372,7 @@ void Heat::SetChamberHeater(size_t index, int8_t heater, int8_t slave)
 #else
 void Heat::SetChamberHeater(size_t index, int8_t heater)
 {
-	const int chamberHeater = chamberHeaters[heater];
+	const int chamberHeater = chamberHeaters[index];
 	if (chamberHeater >= 0)
 	{
 		pids[chamberHeater]->SwitchOff();

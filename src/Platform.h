@@ -29,7 +29,7 @@ Licence: GPL
 // Platform-specific includes
 
 #include "RepRapFirmware.h"
-#include "IoPorts.h"
+#include "Hardware/IoPorts.h"
 #include "DueFlashStorage.h"
 #include "Fans/Fan.h"
 #include "Fans/Tacho.h"
@@ -104,8 +104,10 @@ constexpr uint32_t maxPidSpinDelay = 5000;			// Maximum elapsed time in millisec
 enum class BoardType : uint8_t
 {
 	Auto = 0,
-#if defined(DUET3)
-	Duet3_10 = 1
+#if defined(DUET3_V03)
+	Duet3_03 = 1
+#elif defined(DUET3_V05)
+	Duet3_05 = 1
 #elif defined(SAME70XPLD)
 	SAME70XPLD_0 = 1
 #elif defined(DUET_NG)
@@ -123,8 +125,10 @@ enum class BoardType : uint8_t
 	RADDS_15 = 1
 #elif defined(__ALLIGATOR__)
 	Alligator_2 = 1
-#elif defined(PCCB)
-	PCCB_10 = 1
+#elif defined(PCCB_10)
+	PCCB_v10 = 1
+#elif defined(PCCB_08) || defined(PCCB_08_X5)
+	PCCB_v08 = 1
 #else
 # error Unknown board
 #endif
@@ -371,20 +375,26 @@ public:
 	EUI48EEPROM eui48MacAddress;
 #endif
 
-	friend class FileStore;
-
+	// File functions
 	MassStorage* GetMassStorage() const;
-	FileStore* OpenFile(const char* directory, const char* fileName, OpenMode mode, uint32_t preAllocSize = 0)
-	{
-		return massStorage->OpenFile(directory, fileName, mode, preAllocSize);
-	}
+	FileStore* OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize = 0) const;
+	bool Delete(const char* folder, const char *filename) const;
+	bool FileExists(const char* folder, const char *filename) const;
+	bool DirectoryExists(const char *folder, const char *dir) const;
 
 	const char* GetWebDir() const; 					// Where the html etc files are
 	const char* GetGCodeDir() const; 				// Where the gcodes are
-	const char* GetSysDir() const;  				// Where the system files are
 	const char* GetMacroDir() const;				// Where the user-defined macros are
 	const char* GetConfigFile() const; 				// Where the configuration is stored (in the system dir).
 	const char* GetDefaultFile() const;				// Where the default configuration is stored (in the system dir).
+
+	// Function to work with the system files folder
+	void SetSysDir(const char* dir);				// Set the system files path
+	bool SysFileExists(const char *filename) const;
+	FileStore* OpenSysFile(const char *filename, OpenMode mode) const;
+	bool DeleteSysFile(const char *filename) const;
+	void MakeSysFileName(const StringRef& result, const char *filename) const;
+	void GetSysDir(const StringRef & path) const;
 
 	// Message output (see MessageType for further details)
 	void Message(MessageType type, const char *message);
@@ -450,11 +460,6 @@ public:
 	void GetEndStopConfiguration(size_t axis, EndStopPosition& endstopPos, EndStopInputType& inputType) const
 		pre(axis < MaxAxes);
 
-	const AxisEndstopConfig& GetAxisEndstopConfig(size_t axis) const
-		pre(axis < MaxAxes)
-		{ return axisEndstops[axis]; }
-	void SetAxisEndstopConfig(size_t axis, size_t numValues, const uint32_t inputNumbers[])
-		pre(axis < MaxAxes);
 
 	uint32_t GetAllEndstopStates() const;
 
@@ -612,7 +617,6 @@ public:
 	float GetLaserPwmFrequency() const { return laserPort.GetFrequency(); }
 
 	// Misc
-	void InitI2c();
 
 #if SAM4E || SAM4S || SAME70
 	uint32_t Random();
@@ -625,6 +629,8 @@ public:
   
 private:
 	Platform(const Platform&);						// private copy constructor to make sure we don't try to copy a Platform
+
+	const char* InternalGetSysDir() const;  		// where the system files are - not thread-safe!
 
 	void RawMessage(MessageType type, const char *message);	// called by Message after handling error/warning flags
 
@@ -764,8 +770,9 @@ private:
 	MillisTimer openLoadATimer, openLoadBTimer;
 	MillisTimer driversFanTimers[NumTmcDriversSenseChannels];		// driver cooling fan timers
 	uint8_t nextDriveToPoll;
-	bool driversPowered;
 #endif
+
+	bool driversPowered;
 
 #if HAS_SMART_DRIVERS && HAS_VOLTAGE_MONITOR
 	bool warnDriversNotPowered;
@@ -852,6 +859,7 @@ private:
 
 	// Files
 	MassStorage* massStorage;
+	const char *sysDir;
   
 	// Data used by the tick interrupt handler
 
@@ -935,7 +943,6 @@ private:
 
 	// Misc
 	bool deliberateError;								// true if we deliberately caused an exception for testing purposes
-	bool i2cInitialised;								// true if the I2C subsystem has been initialised
 };
 
 // Where the htm etc files are
@@ -948,12 +955,6 @@ inline const char* Platform::GetWebDir() const
 inline const char* Platform::GetGCodeDir() const
 {
 	return GCODE_DIR;
-}
-
-// Where the system files are
-inline const char* Platform::GetSysDir() const
-{
-	return SYS_DIR;
 }
 
 inline const char* Platform::GetMacroDir() const
@@ -1210,7 +1211,7 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	const PinDescription& pinDesc = g_APinDescription[STEP_PINS[driver]];
 #endif
 
-#if defined(DUET_NG) || defined(DUET_M) || defined(PCCB) || defined(DUET3) || defined(SAME70XPLD)
+#if defined(DUET_NG) || defined(DUET_M) || defined(PCCB) || defined(DUET3_V03) || defined(DUET3_V05) || defined(SAME70XPLD)
 	return pinDesc.ulPin;
 #elif defined(DUET_06_085)
 	return (pinDesc.pPort == PIOA) ? pinDesc.ulPin << 1 : pinDesc.ulPin;
@@ -1232,7 +1233,7 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 {
 #if defined(DUET_NG)
 	PIOD->PIO_ODSR = driverMap;				// on Duet WiFi all step pins are on port D
-#elif defined(DUET_M) || defined(PCCB) || defined(DUET3) || defined(SAME70XPLD)
+#elif defined(DUET_M) || defined(PCCB) || defined(DUET3_V03) || defined(DUET3_V05) || defined(SAME70XPLD)
 	PIOC->PIO_ODSR = driverMap;				// on Duet Maestro all step pins are on port C
 #elif defined(DUET_06_085)
 	PIOD->PIO_ODSR = driverMap;
@@ -1264,8 +1265,8 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 {
 #if defined(DUET_NG)
 	PIOD->PIO_ODSR = 0;						// on Duet WiFi all step pins are on port D
-#elif defined(DUET_M) || defined(PCCB) || defined(DUET3) || defined(SAME70XPLD)
-	PIOC->PIO_ODSR = 0;						// on Duet Maestro all step pins are on port C
+#elif defined(DUET_M) || defined(PCCB) || defined(DUET3_V03) || defined(DUET3_V05) || defined(SAME70XPLD)
+	PIOC->PIO_ODSR = 0;						// on Duet Maestro, Duet 3 and PCCB all step pins are on port C
 #elif defined(DUET_06_085)
 	PIOD->PIO_ODSR = 0;
 	PIOC->PIO_ODSR = 0;

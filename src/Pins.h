@@ -15,8 +15,10 @@
 # elif defined(__SAM4E8E__)
 #  define PLATFORM DuetNG
 # elif defined(__SAME70Q21__) || defined(__SAME70Q20B__) || defined(__SAME70Q21B__)
-#  if defined(DUET3)
-#   define PLATFORM Duet3
+#  if defined(DUET3_V03)
+#   define PLATFORM Duet3_V03
+#  elif defined(DUET3_V05)
+#   define PLATFORM Duet3_V05
 #  elif defined(SAME70XPLD)
 #   define PLATFORM SAME70xpld
 #  else
@@ -106,7 +108,7 @@
 # define HAS_W5500_NETWORKING	0
 #endif
 
-// Boards that support legacy SAM3X networking must define HAS_LEGACY_NETWORKING in their specific Pins_xxx.h file
+// Boards that support legacy SAM3X Lwip 1 networking must define HAS_LEGACY_NETWORKING in their specific Pins_xxx.h file
 #ifndef HAS_LEGACY_NETWORKING
 # define HAS_LEGACY_NETWORKING	0
 #endif

@@ -468,7 +468,7 @@ void Menu::Reload()
 		for (unsigned int line = 1; ; ++line)
 		{
 			char buffer[MaxMenuLineLength];
-			if (file->ReadLine(buffer, sizeof(buffer)) <= 0)
+			if (file->ReadLine(buffer, sizeof(buffer)) < 0)
 			{
 				break;
 			}
@@ -755,38 +755,57 @@ void Menu::AdvanceHighlightedItem(int n)
 	}
 }
 
-// FiNd the next selectable item, or the first one if nullptr is passed in
+// Find the next selectable item, or the first one if nullptr is passed in
+// Note, there may be no selectable items, or there may be just one
 MenuItem *Menu::FindNextSelectableItem(MenuItem *p) const
 {
-	MenuItem *current = (p == nullptr) ? p : p->GetNext();		// set search start point
+	if (selectableItems == nullptr)
+	{
+		return nullptr;
+	}
+
+	MenuItem * initial = (p == nullptr || p->GetNext() == nullptr) ? selectableItems : p->GetNext();
+	MenuItem * current = initial;							// set search start point
 	do
 	{
-		if (current == nullptr)
-		{
-			current = selectableItems;
-		}
-		if (current == nullptr || current->IsVisible())
+		if (current->IsVisible())
 		{
 			return current;
 		}
 		current = current->GetNext();
-	} while (current != p);
-	return (current != nullptr && current->IsVisible()) ? current : nullptr;
+		if (current == nullptr)
+		{
+			current = selectableItems;
+		}
+	} while (current != initial);
+	return nullptr;
 }
 
+// Find the previous selectable item, or the last one if nullptr is passed in
+// Note, there may be no selectable items, and the one we pass in may not be selectable
 MenuItem *Menu::FindPrevSelectableItem(MenuItem *p) const
 {
-	MenuItem *current = FindNextSelectableItem(nullptr);		// get first selectable item
-	while (current != nullptr)
+	if (selectableItems == nullptr)
 	{
-		MenuItem * const n = FindNextSelectableItem(current);
-		if (n == p)
-		{
-			break;
-		}
-		current = n;
+		return nullptr;
 	}
-	return current;
+
+	MenuItem * const initial = (p == nullptr) ? selectableItems : p;	// set search start point
+	MenuItem * current = initial;
+	MenuItem * best = nullptr;
+	do
+	{
+		if (current->IsVisible())
+		{
+			best = current;
+		}
+		current = current->GetNext();
+		if (current == nullptr)
+		{
+			current = selectableItems;
+		}
+	} while (current != initial);
+	return best;
 }
 
 #endif

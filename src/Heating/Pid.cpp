@@ -296,8 +296,9 @@ void PID::Spin()
 				break;
 
 			case HeaterMode::stable:
-				{
-#ifdef BCN3D_DEV
+				
+
+					#ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
 						if((temperature - targetTemperature) > 0.2){
 							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0);
@@ -307,24 +308,29 @@ void PID::Spin()
 							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 						}
 					}
-#endif
-					if (fabsf(error) > maxTempExcursion && temperature > MaxAmbientTemperature)
-					{
+					#endif
+					if (fabsf(error) > maxTempExcursion && temperature > MaxAmbientTemperature){
+
 						++heatingFaultCount;
-						if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
-						{
-							SetHeater(0.0);					// do this here just to be sure
-							mode = HeaterMode::fault;
-							reprap.GetGCodes().HandleHeaterFault(heater);
-							platform.MessageF(ErrorMessage, "Heating fault on heater %d, temperature excursion exceeded %.1f" DEGREE_SYMBOL "C\n",
+				   		if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
+                   	
+				   		{
+				   			++heatingFaultCount;
+				   			if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
+				  			{
+								SetHeater(0.0);					// do this here just to be sure
+								mode = HeaterMode::fault;
+								reprap.GetGCodes().HandleHeaterFault(heater);
+								platform.MessageF(ErrorMessage, "Heating fault on heater %d, temperature excursion exceeded %.1f" DEGREE_SYMBOL "C\n",
 												heater, (double)maxTempExcursion);
+							}
+						}
+						else if (heatingFaultCount != 0)
+						{
+							--heatingFaultCount;
 						}
 					}
-					else if (heatingFaultCount != 0)
-					{
-						--heatingFaultCount;
-					}
-				}
+				
 				break;
 
 			case HeaterMode::cooling:
@@ -744,7 +750,7 @@ void PID::DoTuningStep()
 				break;
 			}
 
-			const uint32_t timeoutMinutes = (isBedOrChamberHeater) ? 20 : 5;
+			const uint32_t timeoutMinutes = (isBedOrChamberHeater) ? 30 : 7;
 			if (heatingTime >= timeoutMinutes * 60 * (uint32_t)SecondsToMillis)
 			{
 				platform.Message(GenericMessage, "Auto tune cancelled because target temperature was not reached\n");

@@ -42,13 +42,12 @@ public:
 	void OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], DDA& dda) const override;
 	bool WriteResumeSettings(FileStore *f) const override;
 	void LimitSpeedAndAcceleration(DDA& dda, const float *normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const override;
+	AxesBitmap GetLinearAxes() const override;
 
     // Public functions specific to this class
 	float GetDiagonalSquared(size_t tower) const { return D2[tower]; }
     float GetTowerX(size_t axis) const { return towerX[axis]; }
     float GetTowerY(size_t axis) const { return towerY[axis]; }
-    float GetHomedCarriageHeight(size_t axis) const { return homedCarriageHeights[axis] + endstopAdjustments[axis]; }
-	float GetHomedHeight() const { return homedHeight; }
 
 private:
 	void Init();
@@ -80,7 +79,7 @@ private:
 	float diagonals[MaxTowers];							// The diagonal rod lengths
 	float radius;										// The nominal delta radius, before any fine tuning of tower positions
 	float angleCorrections[UsualNumTowers];				// Tower position corrections for the first 3 axes
-	float endstopAdjustments[UsualNumTowers];			// How much above or below the ideal position each endstop is
+	float endstopAdjustments[MaxTowers];				// How much above or below the ideal position each endstop is
 	float printRadius;
 	float homedHeight;
 	float xTilt, yTilt;									// How much we need to raise Z for each unit of movement in the +X and +Y directions

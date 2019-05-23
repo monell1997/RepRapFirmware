@@ -15,6 +15,7 @@
 #include "Tools/Tool.h"
 #include "PrintMonitor.h"
 #include "Tasks.h"
+#include "Hardware/I2C.h"
 
 #if HAS_WIFI_NETWORKING
 # include "FirmwareUpdater.h"
@@ -252,14 +253,14 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb)
 				}
 			}
 			SetBit(axesIncluded, axis);
-			currentUserPosition[axis] = axisValue * distanceScale;
+			currentUserPosition[axis] = gb.ConvertDistance(axisValue);
 		}
 	}
 
 	// Handle any E parameter in the G92 command
 	if (gb.Seen(extrudeLetter))
 	{
-		virtualExtruderPosition = gb.GetFValue() * distanceScale;
+		virtualExtruderPosition = gb.ConvertDistance(gb.GetFValue());
 	}
 
 	if (axesIncluded != 0)
@@ -304,7 +305,7 @@ GCodeResult GCodes::OffsetAxes(GCodeBuffer& gb, const StringRef& reply)
 #else
 			axisOffsets[axis]
 #endif
-						 = -(gb.GetFValue() * distanceScale);
+						 = -gb.ConvertDistance(gb.GetFValue());
 			seen = true;
 		}
 	}
@@ -316,9 +317,9 @@ GCodeResult GCodes::OffsetAxes(GCodeBuffer& gb, const StringRef& reply)
 		{
 			reply.catf(" %c%.2f", axisLetters[axis],
 #if SUPPORT_WORKPLACE_COORDINATES
-				-(double)(workplaceCoordinates[0][axis]/distanceScale)
+				-(double)(gb.InverseConvertDistance(workplaceCoordinates[0][axis]))
 #else
-				-(double)(axisOffsets[axis]/distanceScale)
+				-(double)(gb.InverseConvertDistance(axisOffsets[axis]))
 #endif
 													 );
 		}
@@ -340,7 +341,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 		{
 			if (gb.Seen(axisLetters[axis]))
 			{
-				const float coord = gb.GetFValue() * distanceScale;
+				const float coord = gb.ConvertDistance(gb.GetFValue());
 				if (!seen)
 				{
 					if (!LockMovementAndWaitForStandstill(gb))						// make sure the user coordinates are stable and up to date
@@ -364,7 +365,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 			reply.printf("Origin of workplace %" PRIu32 ":", cs);
 			for (size_t axis = 0; axis < numVisibleAxes; axis++)
 			{
-				reply.catf(" %c%.2f", axisLetters[axis], (double)(workplaceCoordinates[cs - 1][axis]/distanceScale));
+				reply.catf(" %c%.2f", axisLetters[axis], (double)gb.InverseConvertDistance(workplaceCoordinates[cs - 1][axis]));
 			}
 		}
 		return GCodeResult::ok;
@@ -984,7 +985,7 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 			// Deal with feed rate
 			if (gb.Seen(feedrateLetter))
 			{
-				const float rate = gb.GetFValue() * distanceScale;
+				const float rate = gb.ConvertDistance(gb.GetFValue());
 				gb.MachineState().feedRate = rate * SecondsToMinutes;	// don't apply the speed factor to homing and other special moves
 			}
 			moveBuffer.feedRate = gb.MachineState().feedRate;
@@ -1158,12 +1159,8 @@ GCodeResult GCodes::SendI2c(GCodeBuffer& gb, const StringRef &reply)
 				bValues[i] = (uint8_t)values[i];
 			}
 
-			platform.InitI2c();
-			size_t bytesTransferred;
-			{
-				MutexLocker lock(Tasks::GetI2CMutex());
-				bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
-			}
+			I2C::Init();
+			const size_t bytesTransferred = I2C::Transfer(address, bValues, numToSend, numToReceive);
 
 			if (bytesTransferred < numToSend)
 			{
@@ -1208,14 +1205,10 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 			const uint32_t numBytes = gb.GetUIValue();
 			if (numBytes > 0 && numBytes <= MaxI2cBytes)
 			{
-				platform.InitI2c();
+				I2C::Init();
 
 				uint8_t bValues[MaxI2cBytes];
-				size_t bytesRead;
-				{
-					MutexLocker lock(Tasks::GetI2CMutex());
-					bytesRead = I2C_IFACE.Transfer(address, bValues, 0, numBytes);
-				}
+				const size_t bytesRead = I2C::Transfer(address, bValues, 0, numBytes);
 
 				reply.copy("Received");
 				if (bytesRead == 0)

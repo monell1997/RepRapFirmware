@@ -239,13 +239,15 @@ constexpr size_t MaxFilenameLength = 100;
 constexpr size_t MaxVariableNameLength = 100;
 #endif
 
-constexpr size_t MaxHeaterNameLength = 20;				// Maximum number of characters in a heater name
-constexpr size_t MaxFanNameLength = 20;					// Maximum number of characters in a fan name
+constexpr size_t StringLength20 = 20;
+constexpr size_t StringLength40 = 40;
 
+constexpr size_t MaxHeaterNameLength = StringLength20;	// Maximum number of characters in a heater name
+constexpr size_t MaxFanNameLength = StringLength20;		// Maximum number of characters in a fan name
 constexpr size_t FormatStringLength = 256;
 constexpr size_t GCodeReplyLength = 256;				// Maximum number of characters in a GCode reply that doesn't use an OutputBuffer
-constexpr size_t MachineNameLength = 40;
-constexpr size_t RepRapPasswordLength = 20;
+constexpr size_t MachineNameLength = StringLength40;
+constexpr size_t RepRapPasswordLength = StringLength20;
 constexpr size_t MediumStringLength = MaxFilenameLength;
 
 #if SAM4E || SAM4S || SAME70
@@ -267,7 +269,7 @@ constexpr size_t OUTPUT_BUFFER_COUNT = 32;				// How many OutputBuffer instances
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 4;			// Number of reserved output buffers after long responses, enough to hold a status response
 #elif SAM4E || SAM4S
 constexpr size_t OUTPUT_BUFFER_SIZE = 256;				// How many bytes does each OutputBuffer hold?
-constexpr size_t OUTPUT_BUFFER_COUNT = 20;				// How many OutputBuffer instances do we have?
+constexpr size_t OUTPUT_BUFFER_COUNT = 24;				// How many OutputBuffer instances do we have?
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 4;			// Number of reserved output buffers after long responses, enough to hold a status response
 #elif SAM3XA
 constexpr size_t OUTPUT_BUFFER_SIZE = 256;				// How many bytes does each OutputBuffer hold?
@@ -300,8 +302,10 @@ constexpr float DefaultIdleCurrentFactor = 0.3;			// Proportion of normal motor 
 constexpr float DefaultNonlinearExtrusionLimit = 0.2;	// Maximum additional commanded extrusion to compensate for nonlinearity
 constexpr size_t NumRestorePoints = 6;					// Number of restore points, must be at least 3
 
+constexpr float AxisRoundingError = 0.05;				// Maximum possible error when we round trip a machine position to motor coordinates and back
+
 // Triggers
-constexpr unsigned int MaxTriggers = 10;				// Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
+constexpr unsigned int MaxTriggers = 16;				// Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
 // Default nozzle and filament values
 constexpr float NOZZLE_DIAMETER = 0.5;					// Millimetres
@@ -350,7 +354,7 @@ constexpr size_t FILE_BUFFER_SIZE = 128;
 #define FS_PREFIX "0:"
 #define WEB_DIR "0:/www/"							// Place to find web files on the SD card
 #define GCODE_DIR "0:/gcodes/"						// Ditto - G-Codes
-#define SYS_DIR "0:/sys/"							// Ditto - System files
+#define DEFAULT_SYS_DIR "0:/sys/"					// Ditto - System files (can be changed using M505)
 #define MACRO_DIR "0:/macros/"						// Ditto - Macro files
 #define SCANS_DIRECTORY "0:/scans/"					// Directory for uploaded 3D scans
 #define FILAMENTS_DIRECTORY "0:/filaments/"			// Directory for filament configurations

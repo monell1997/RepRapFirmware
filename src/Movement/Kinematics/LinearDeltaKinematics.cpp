@@ -35,13 +35,13 @@ void LinearDeltaKinematics::Init()
 	for (size_t axis = 0; axis < UsualNumTowers; ++axis)
 	{
 		angleCorrections[axis] = 0.0;
-		endstopAdjustments[axis] = 0.0;
 	}
 
 	for (size_t axis = 0; axis < MaxTowers; ++axis)
 	{
 		diagonals[axis] = DefaultDiagonal;
 		towerX[axis] = towerY[axis] = 0.0;
+		endstopAdjustments[axis] = 0.0;
 	}
 
 	Recalc();
@@ -73,14 +73,9 @@ void LinearDeltaKinematics::Recalc()
 	for (size_t axis = 0; axis < numTowers; ++axis)
 	{
 		D2[axis] = fsquare(diagonals[axis]);
-		if (axis < UsualNumTowers)
-		{
-			homedCarriageHeights[axis] = homedHeight + sqrtf(D2[axis] - fsquare(radius)) + endstopAdjustments[axis];
-		}
-		else
-		{
-			homedCarriageHeights[axis] = homedHeight + sqrtf(D2[axis] - fsquare(towerX[axis]) - fsquare(towerY[axis]));
-		}
+		homedCarriageHeights[axis] = homedHeight
+									+ sqrtf(D2[axis] - ((axis < UsualNumTowers) ? fsquare(radius) : fsquare(towerX[axis]) + fsquare(towerY[axis])))
+									+ endstopAdjustments[axis];
 		const float heightLimit = homedCarriageHeights[axis] - diagonals[axis];
 		if (heightLimit < alwaysReachableHeight)
 		{
@@ -105,9 +100,10 @@ void LinearDeltaKinematics::Recalc()
 void LinearDeltaKinematics::NormaliseEndstopAdjustments()
 {
 	const float eav = (endstopAdjustments[DELTA_A_AXIS] + endstopAdjustments[DELTA_B_AXIS] + endstopAdjustments[DELTA_C_AXIS])/3.0;
-	endstopAdjustments[DELTA_A_AXIS] -= eav;
-	endstopAdjustments[DELTA_B_AXIS] -= eav;
-	endstopAdjustments[DELTA_C_AXIS] -= eav;
+	for (size_t i = 0; i < numTowers; ++i)
+	{
+		endstopAdjustments[i] -= eav;
+	}
 	homedHeight += eav;
 }
 
@@ -451,18 +447,17 @@ bool LinearDeltaKinematics::DoAutoCalibration(size_t numFactors, const RandomPro
 		}
 
 		// Save the old homed carriage heights before we change the endstop corrections
-		float oldHomedCarriageHeights[UsualNumTowers];
-		for (size_t drive = 0; drive < UsualNumTowers; ++drive)
+		float heightAdjust[MaxTowers];
+		for (size_t drive = 0; drive < numTowers; ++drive)
 		{
-			oldHomedCarriageHeights[drive] = GetHomedCarriageHeight(drive);
+			heightAdjust[drive] = homedCarriageHeights[drive];
 		}
 
 		Adjust(numFactors, solution);	// adjust the delta parameters
 
-		float heightAdjust[UsualNumTowers];
-		for (size_t drive = 0; drive < UsualNumTowers; ++drive)
+		for (size_t drive = 0; drive < numTowers; ++drive)
 		{
-			heightAdjust[drive] =  GetHomedCarriageHeight(drive) - oldHomedCarriageHeights[drive];
+			heightAdjust[drive] = homedCarriageHeights[drive] - heightAdjust[drive];
 		}
 
 		// Adjust the motor endpoints to allow for the change to endstop adjustments
@@ -777,9 +772,10 @@ bool LinearDeltaKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const
 	case 666:
 		{
 			bool seen = false;
-			gb.TryGetFValue('X', endstopAdjustments[DELTA_A_AXIS], seen);
-			gb.TryGetFValue('Y', endstopAdjustments[DELTA_B_AXIS], seen);
-			gb.TryGetFValue('Z', endstopAdjustments[DELTA_C_AXIS], seen);
+			for (size_t tower = 0; tower < numTowers; ++tower)
+			{
+				gb.TryGetFValue("XYZUVW"[tower], endstopAdjustments[tower], seen);
+			}
 
 			if (gb.Seen('A'))
 			{
@@ -922,6 +918,14 @@ void LinearDeltaKinematics::LimitSpeedAndAcceleration(DDA& dda, const float *nor
 		const float maxAcceleration = min<float>(platform.Acceleration(X_AXIS), platform.Acceleration(Y_AXIS));
 		dda.LimitSpeedAndAcceleration(maxSpeed/xyFactor, maxAcceleration/xyFactor);
 	}
+}
+
+// Return a bitmap of axes that move linearly in response to the correct combination of linear motor movements.
+// This is called to determine whether we can babystep the specified axis independently of regular motion.
+// The DDA class has special support for delta printers, so we can baystep the Z axis.
+AxesBitmap LinearDeltaKinematics::GetLinearAxes() const
+{
+	return MakeBitmap<AxesBitmap>(Z_AXIS);
 }
 
 // End

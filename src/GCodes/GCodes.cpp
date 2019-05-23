@@ -63,6 +63,23 @@ DEFINE_GET_OBJECT_MODEL_TABLE(GCodes)
 
 #endif
 
+// Set up some default values in the move buffer for special moves, e.g. for Z probing and firmware retraction
+void GCodes::RawMove::SetDefaults(size_t firstDriveToZero)
+{
+	moveType = 0;
+	isCoordinated = false;
+	usingStandardFeedrate = false;
+	usePressureAdvance = false;
+	endStopsToCheck = 0;
+	filePos = noFilePosition;
+	xAxes = DefaultXAxisMapping;
+	yAxes = DefaultYAxisMapping;
+	for (size_t drive = firstDriveToZero; drive < MaxTotalDrivers; ++drive)
+	{
+		coords[drive] = 0.0;			// clear extrusion
+	}
+}
+
 #ifdef SERIAL_AUX_DEVICE
 // Support for emergency stpo form PanelDue
 bool GCodes::emergencyStopCommanded = false;
@@ -130,7 +147,6 @@ void GCodes::Init()
 
 	Reset();
 
-	distanceScale = 1.0;
 	virtualExtruderPosition = rawExtruderTotal = 0.0;
 	for (float& f : rawExtruderTotalByDrive)
 	{
@@ -158,6 +174,7 @@ void GCodes::Init()
 	lastAuxStatusReportType = -1;						// no status reports requested yet
 
 	laserMaxPower = DefaultMaxLaserPower;
+	laserPowerSticky = false;
 
 	heaterFaultState = HeaterFaultState::noFault;
 	heaterFaultTime = 0;
@@ -227,7 +244,12 @@ void GCodes::Reset()
 	}
 
 	ClearMove();
-	ClearBabyStepping();								// clear this before calling ToolOffsetInverseTransform
+
+	for (float& f : currentBabyStepOffsets)
+	{
+		f = 0.0;										// clear babystepping before calling ToolOffsetInverseTransform
+	}
+
 	currentZHop = 0.0;									// clear this before calling ToolOffsetInverseTransform
 	lastPrintingMoveHeight = -1.0;
 	moveBuffer.xAxes = DefaultXAxisMapping;
@@ -1569,7 +1591,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 				const float fileMbytes = (float)timingBytesWritten/(float)(1024 * 1024);
 				const float mbPerSec = (fileMbytes * 1000.0)/(float)ms;
 				reply.printf("SD write speed for %.1fMbyte file was %.2fMbytes/sec", (double)fileMbytes, (double)mbPerSec);
-				platform.GetMassStorage()->Delete(platform.GetGCodeDir(), TimingFileName);
+				platform.Delete(platform.GetGCodeDir(), TimingFileName);
 				gb.SetState(GCodeState::normal);
 				break;
 			}
@@ -1577,7 +1599,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			if (!sdTimingFile->Write(reply.c_str(), reply.Capacity()))
 			{
 				sdTimingFile->Close();
-				platform.GetMassStorage()->Delete(platform.GetGCodeDir(), TimingFileName);
+				platform.Delete(platform.GetGCodeDir(), TimingFileName);
 				reply.copy("Error writing to timing file");
 				error = true;
 				gb.SetState(GCodeState::normal);
@@ -1806,8 +1828,8 @@ void GCodes::CheckTriggers()
 		else
 		{
 			ClearBit(triggersPending, lowestTriggerPending);		// clear the trigger
-			String<25> filename;
-			filename.printf(SYS_DIR "trigger%u.g", lowestTriggerPending);
+			String<StringLength20> filename;
+			filename.printf("trigger%u.g", lowestTriggerPending);
 			DoFileMacro(*daemonGCode, filename.c_str(), true);
 		}
 	}
@@ -1822,7 +1844,7 @@ void GCodes::CheckFilament()
 		&& LockMovement(*autoPauseGCode)							// need to lock movement before executing the pause macro
 	   )
 	{
-		String<100> filamentErrorString;
+		String<MediumStringLength> filamentErrorString;
 		filamentErrorString.printf("Extruder %u reports %s", lastFilamentErrorExtruder, FilamentMonitor::GetErrorMessage(lastFilamentError));
 		DoPause(*autoPauseGCode, PauseReason::filament, filamentErrorString.c_str());
 		lastFilamentError = FilamentSensorStatus::ok;
@@ -2192,7 +2214,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 	const char* const printingFilename = reprap.GetPrintMonitor().GetPrintingFilename();
 	if (printingFilename != nullptr)
 	{
-		FileStore * const f = platform.OpenFile(platform.GetSysDir(), RESUME_AFTER_POWER_FAIL_G, OpenMode::write);
+		FileStore * const f = platform.OpenSysFile(RESUME_AFTER_POWER_FAIL_G, OpenMode::write);
 		if (f == nullptr)
 		{
 			platform.MessageF(ErrorMessage, "Failed to create file %s", RESUME_AFTER_POWER_FAIL_G);
@@ -2211,7 +2233,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 				buf.catf(" at %04u-%02u-%02u %02u:%02u",
 								timeInfo->tm_year + 1900, timeInfo->tm_mon + 1, timeInfo->tm_mday, timeInfo->tm_hour, timeInfo->tm_min);
 			}
-			buf.cat('\n');
+			buf.cat("\nG21\n");												// set units to mm because we will be writing positions in mm
 			bool ok = f->Write(buf.c_str())
 					&& reprap.GetHeat().WriteBedAndChamberTempSettings(f)	// turn on bed and chamber heaters
 					&& reprap.WriteToolSettings(f)							// set tool temperatures, tool mix ratios etc.
@@ -2229,7 +2251,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 			}
 			if (ok)
 			{
-				buf.printf("M98 P%s\n", RESUME_PROLOGUE_G);					// call the prologue - must contain at least M116
+				buf.printf("M98 P\"%s\"\n", RESUME_PROLOGUE_G);					// call the prologue - must contain at least M116
 				ok = f->Write(buf.c_str())
 					&& platform.WriteFanSettings(f);						// set the speeds of non-thermostatic fans
 			}
@@ -2240,8 +2262,13 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 			}
 			if (ok)
 			{
-				buf.printf("M116\nM290 S%.3f\n", (double)currentBabyStepZOffset);
-				ok = f->Write(buf.c_str());								// write baby stepping offset
+				buf.copy("M116\nM290");
+				for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+				{
+					buf.catf(" %c%.3f", axisLetters[axis], (double)GetTotalBabyStepOffset(axis));
+				}
+				buf.cat(" R0\n");
+				ok = f->Write(buf.c_str());								// write baby stepping offsets
 			}
 			if (ok && fileGCode->OriginalMachineState().volumetricExtrusion)
 			{
@@ -2262,7 +2289,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 			}
 			if (ok)
 			{
-				buf.printf("M23 %s\nM26 S%" PRIu32 " P%.3f\n", printingFilename, pauseRestorePoint.filePos, (double)pauseRestorePoint.proportionDone);
+				buf.printf("M23 \"%s\"\nM26 S%" PRIu32 " P%.3f\n", printingFilename, pauseRestorePoint.filePos, (double)pauseRestorePoint.proportionDone);
 				ok = f->Write(buf.c_str());								// write filename and file position
 			}
 			if (ok)
@@ -2300,8 +2327,8 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 #if SUPPORT_LASER
 				}
 #endif
-				buf.cat("\nM24\n");
-				ok = f->Write(buf.c_str());								// restore feed rate and output bits
+				buf.catf("\n%s\nM24\n", (fileGCode->OriginalMachineState().usingInches) ? "G20" : "G21");
+				ok = f->Write(buf.c_str());								// restore feed rate, output bits or laser power, and inches/mm
 			}
 			if (!f->Close())
 			{
@@ -2313,7 +2340,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 			}
 			else
 			{
-				platform.GetMassStorage()->Delete(platform.GetSysDir(), RESUME_AFTER_POWER_FAIL_G);
+				platform.DeleteSysFile(RESUME_AFTER_POWER_FAIL_G);
 				platform.MessageF(ErrorMessage, "Failed to write or close file %s\n", RESUME_AFTER_POWER_FAIL_G);
 			}
 		}
@@ -2396,7 +2423,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb)
 	{
 		if (gb.Seen(feedrateLetter))
 		{
-			const float rate = gb.GetFValue() * distanceScale;
+			const float rate = gb.ConvertDistance(gb.GetFValue());
 			gb.MachineState().feedRate = (moveBuffer.moveType == 0)
 						? rate * speedFactor * (0.01 * SecondsToMinutes)
 						: rate * SecondsToMinutes;		// don't apply the speed factor to homing and other special moves
@@ -2441,7 +2468,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb)
 			if (mc == 1)
 			{
 				// There may be multiple extruders present but only one value has been specified, so use mixing
-				const float moveArg = eMovement[0] * distanceScale;
+				const float moveArg = gb.ConvertDistance(eMovement[0]);
 				float requestedExtrusionAmount;
 				if (gb.MachineState().drivesRelative)
 				{
@@ -2491,7 +2518,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb)
 					for (size_t eDrive = 0; eDrive < eMoveCount; eDrive++)
 					{
 						const int drive = tool->Drive(eDrive);
-						float extrusionAmount = eMovement[eDrive] * distanceScale;
+						float extrusionAmount = gb.ConvertDistance(eMovement[eDrive]);
 						if (extrusionAmount != 0.0)
 						{
 							if (gb.MachineState().volumetricExtrusion)
@@ -2572,13 +2599,11 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		}
 	}
 
-#if SUPPORT_WORKPLACE_COORDINATES
 	if (moveBuffer.moveType == 0 && rp == nullptr && gb.MachineState().UsingMachineCoordinates())
 	{
 		moveBuffer.xAxes = DefaultXAxisMapping;
 		moveBuffer.yAxes = DefaultYAxisMapping;
 	}
-#endif
 
 	// Check for laser power setting or IOBITS
 #if SUPPORT_LASER || SUPPORT_IOBITS
@@ -2597,9 +2622,13 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		{
 			moveBuffer.laserPwmOrIoBits.laserPwm = ConvertLaserPwm(gb.GetFValue());
 		}
-		else
+		else if (laserPowerSticky)
 		{
 			// leave the laser PWM alone because this is what LaserWeb expects
+		}
+		else
+		{
+			moveBuffer.laserPwmOrIoBits.laserPwm = 0;
 		}
 	}
 #endif
@@ -2645,8 +2674,8 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			}
 
 			SetBit(axesMentioned, axis);
-			const float moveArg = gb.GetFValue() * distanceScale;
-			if (moveBuffer.moveType != 0 || (rp == nullptr && gb.MachineState().UsingMachineCoordinates()))
+			const float moveArg = gb.ConvertDistance(gb.GetFValue());
+			if (moveBuffer.moveType != 0 || (rp == nullptr && gb.MachineState().g53Active))
 			{
 				if (gb.MachineState().axesRelative)
 				{
@@ -2717,7 +2746,7 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 	}
 	else
 	{
-		if (rp == nullptr && gb.MachineState().UsingMachineCoordinates())
+		if (rp == nullptr && gb.MachineState().g53Active)
 		{
 			gb.SetState(GCodeState::waitingForSpecialMoveToComplete);			// we need to update the user coordinates after the move
 		}
@@ -2728,8 +2757,8 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 				lastPrintingMoveHeight = currentUserPosition[Z_AXIS];
 			}
 
-			ToolOffsetTransform(currentUserPosition, moveBuffer.coords, axesMentioned);	// apply tool offset, axis mapping, baby stepping, Z hop and axis scaling
-
+			ToolOffsetTransform(currentUserPosition, moveBuffer.coords, axesMentioned, !gb.MachineState().runningSystemMacro);
+																				// apply tool offset, axis mapping, baby stepping, Z hop and axis scaling
 			// If we are emulating Marlin for nanoDLP then we need to set a special end state
 			if (platform.Emulating() == Compatibility::nanoDLP && &gb == serialGCode && !DoingFileMacro())
 			{
@@ -2742,7 +2771,7 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		{
 			ClearBit(effectiveAxesHomed, Z_AXIS);								// if doing a manual Z probe, don't limit the Z movement
 		}
-		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, moveBuffer.isCoordinated, limitAxes))
+        if (moveBuffer.moveType == 0 && reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, moveBuffer.isCoordinated, limitAxes))
 		{
 			if (machineType != MachineType::fff)
 			{
@@ -2797,7 +2826,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	float xParam, yParam;
 	if (gb.Seen('X'))
 	{
-		xParam = gb.GetFValue() * distanceScale;
+		xParam = gb.ConvertDistance(gb.GetFValue());
 	}
 	else
 	{
@@ -2806,7 +2835,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 
 	if (gb.Seen('Y'))
 	{
-		yParam = gb.GetFValue() * distanceScale;
+		yParam = gb.ConvertDistance(gb.GetFValue());
 	}
 	else
 	{
@@ -2817,7 +2846,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	if (gb.Seen('R'))
 	{
 		// We've been given a radius, which takes precedence over I and J parameters
-		const float rParam = gb.GetFValue() * distanceScale;
+		const float rParam = gb.ConvertDistance(gb.GetFValue());
 
 		// Get the XY coordinates of the midpoints between the start and end points X and Y distances between start and end points
 		float deltaX, deltaY;
@@ -2853,7 +2882,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	{
 		if (gb.Seen('I'))
 		{
-			iParam = gb.GetFValue() * distanceScale;
+			iParam = gb.ConvertDistance(gb.GetFValue());
 		}
 		else
 		{
@@ -2861,8 +2890,8 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		}
 
 		if (gb.Seen('J'))
-		{
-			jParam = gb.GetFValue() * distanceScale;
+		{	
+			jParam = gb.ConvertDistance(gb.GetFValue());
 		}
 		else
 		{
@@ -2905,7 +2934,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	{
 		if (gb.Seen(axisLetters[axis]))
 		{
-			const float axisParam = gb.GetFValue() * distanceScale;
+			const float axisParam = gb.ConvertDistance(gb.GetFValue());
 			if (axesRelative)
 			{
 				currentUserPosition[axis] += axisParam;
@@ -2925,7 +2954,8 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	}
 
 	// Transform to machine coordinates and check that it is within limits
-	ToolOffsetTransform(currentUserPosition, moveBuffer.coords);			// set the final position
+	ToolOffsetTransform(currentUserPosition, moveBuffer.coords, axesMentioned, !gb.MachineState().runningSystemMacro);			// set the final position
+
 	if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, true, limitAxes))
 	{
 		// Abandon the move
@@ -2966,9 +2996,13 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		{
 			moveBuffer.laserPwmOrIoBits.laserPwm = ConvertLaserPwm(gb.GetFValue());
 		}
-		else
+		else if (laserPowerSticky)
 		{
 			// leave the laser PWM alone because this is what LaserWeb expects
+		}
+		else
+		{
+			moveBuffer.laserPwmOrIoBits.laserPwm = 0;
 		}
 	}
 # if SUPPORT_IOBITS
@@ -3202,7 +3236,7 @@ void GCodes::EmergencyStop()
 // 0 = running a system macro automatically
 bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning)
 {
-	FileStore * const f = platform.OpenFile(platform.GetSysDir(), fileName, OpenMode::read);
+	FileStore * const f = platform.OpenSysFile(fileName, OpenMode::read);
 	if (f == nullptr)
 	{
 		if (reportMissing)
@@ -3225,7 +3259,7 @@ bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissi
 	gb.MachineState().runningM502 = (codeRunning == 502);
 	if (codeRunning != 98)
 	{
-		gb.MachineState().useMachineCoordinatesSticky = true;	// running a system macro e.g. homing or tool change, so don't use workplace coordinates
+		gb.MachineState().runningSystemMacro = true;	// running a system macro e.g. homing or tool change, so don't use workplace coordinates
 	}
 	gb.SetState(GCodeState::normal);
 	gb.Init();
@@ -3423,7 +3457,7 @@ GCodeResult GCodes::LoadHeightMap(GCodeBuffer& gb, const StringRef& reply)
 		heightMapFileName.copy(DefaultHeightMapFile);
 	}
 
-	FileStore * const f = platform.OpenFile(platform.GetSysDir(), heightMapFileName.c_str(), OpenMode::read);
+	FileStore * const f = platform.OpenSysFile(heightMapFileName.c_str(), OpenMode::read);
 	if (f == nullptr)
 	{
 		reply.printf("Height map file %s not found", heightMapFileName.c_str());
@@ -3458,7 +3492,7 @@ bool GCodes::SaveHeightMap(GCodeBuffer& gb, const StringRef& reply) const
 		heightMapFileName.copy(DefaultHeightMapFile);
 	}
 
-	FileStore * const f = platform.OpenFile(platform.GetSysDir(), heightMapFileName.c_str(), OpenMode::write);
+	FileStore * const f = platform.OpenSysFile(heightMapFileName.c_str(), OpenMode::write);
 	bool err;
 	if (f == nullptr)
 	{
@@ -3471,7 +3505,7 @@ bool GCodes::SaveHeightMap(GCodeBuffer& gb, const StringRef& reply) const
 		f->Close();
 		if (err)
 		{
-			platform.GetMassStorage()->Delete(platform.GetSysDir(), heightMapFileName.c_str());
+			platform.DeleteSysFile(heightMapFileName.c_str());
 			reply.catf("Failed to save height map to file %s", heightMapFileName.c_str());
 		}
 		else
@@ -4457,7 +4491,7 @@ GCodeResult GCodes::LoadFilament(GCodeBuffer& gb, const StringRef& reply)
 			return GCodeResult::error;
 		}
 
-		if (!platform.GetMassStorage()->DirectoryExists(FILAMENTS_DIRECTORY, filamentName.c_str()))
+		if (!platform.DirectoryExists(FILAMENTS_DIRECTORY, filamentName.c_str()))
 		{
 			reply.copy("Filament configuration directory not found");
 			return GCodeResult::error;
@@ -4551,6 +4585,14 @@ void GCodes::StopPrint(StopPrintReason reason)
 
 	UnlockAll(*fileGCode);
 
+	// Deal with the Z hop from a G10 that has not been undone by G11
+	if (isRetracted)
+	{
+		currentUserPosition[Z_AXIS] += currentZHop;
+		currentZHop = 0.0;
+		isRetracted = false;
+	}
+
 	const char *printingFilename = reprap.GetPrintMonitor().GetPrintingFilename();
 	if (printingFilename == nullptr)
 	{
@@ -4616,7 +4658,7 @@ void GCodes::StopPrint(StopPrintReason reason)
 			printingFilename, printMinutes/60u, printMinutes % 60u);
 		if (reason == StopPrintReason::normalCompletion && simulationMode == 0)
 		{
-			platform.GetMassStorage()->Delete(platform.GetSysDir(), RESUME_AFTER_POWER_FAIL_G);
+			platform.DeleteSysFile(RESUME_AFTER_POWER_FAIL_G);
 		}
 	}
 
@@ -4692,14 +4734,19 @@ void GCodes::RestorePosition(const RestorePoint& rp, GCodeBuffer *gb)
 // Convert user coordinates to head reference point coordinates, optionally allowing for X axis mapping
 // If the X axis is mapped to some other axes not including X, then the X coordinate of coordsOut will be left unchanged.
 // So make sure it is suitably initialised before calling this.
-void GCodes::ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes)
+void GCodes::ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes, bool applyWorkplaceOffsets)
 {
 	const Tool * const currentTool = reprap.GetCurrentTool();
 	if (currentTool == nullptr)
 	{
 		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 		{
-			coordsOut[axis] = (coordsIn[axis] * axisScaleFactors[axis]) + GetWorkplaceOffset(axis);
+			float outCoord = (coordsIn[axis] * axisScaleFactors[axis]) + currentBabyStepOffsets[axis];
+			if (applyWorkplaceOffsets)
+			{
+				outCoord += GetWorkplaceOffset(axis);
+			}
+			coordsOut[axis] = outCoord;
 		}
 	}
 	else
@@ -4712,7 +4759,11 @@ void GCodes::ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[
 				&& (axis != Y_AXIS || IsBitSet(yAxes, Y_AXIS))
 			   )
 			{
-				const float totalOffset = GetWorkplaceOffset(axis) - currentTool->GetOffset(axis);
+				float totalOffset = currentBabyStepOffsets[axis] - currentTool->GetOffset(axis);
+				if (applyWorkplaceOffsets)
+				{
+					totalOffset += GetWorkplaceOffset(axis);
+				}
 				const size_t inputAxis = (IsBitSet(explicitAxes, axis)) ? axis
 										: (IsBitSet(xAxes, axis)) ? X_AXIS
 											: (IsBitSet(yAxes, axis)) ? Y_AXIS
@@ -4721,7 +4772,7 @@ void GCodes::ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[
 			}
 		}
 	}
-	coordsOut[Z_AXIS] += (currentZHop + currentBabyStepZOffset);
+	coordsOut[Z_AXIS] += currentZHop;
 }
 
 // Convert head reference point coordinates to user coordinates, allowing for XY axis mapping
@@ -4733,7 +4784,7 @@ void GCodes::ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coo
 	{
 		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 		{
-			coordsOut[axis] = (coordsIn[axis] - GetWorkplaceOffset(axis)) / axisScaleFactors[axis];
+			coordsOut[axis] = (coordsIn[axis] - GetWorkplaceOffset(axis) - currentBabyStepOffsets[axis])/axisScaleFactors[axis];
 		}
 	}
 	else
@@ -4744,16 +4795,17 @@ void GCodes::ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coo
 		size_t numXAxes = 0, numYAxes = 0;
 		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 		{
-			const float totalOffset = GetWorkplaceOffset(axis) - currentTool->GetOffset(axis);
-			coordsOut[axis] = coordsIn[axis]/axisScaleFactors[axis] - totalOffset;
+			const float totalOffset = GetWorkplaceOffset(axis) - currentTool->GetOffset(axis) - currentBabyStepOffsets[axis];
+			const float coord = (coordsIn[axis] - totalOffset)/axisScaleFactors[axis];
+			coordsOut[axis] = coord;
 			if (IsBitSet(xAxes, axis))
 			{
-				xCoord += coordsIn[axis]/axisScaleFactors[axis] - totalOffset;
+				xCoord += coord;
 				++numXAxes;
 			}
 			if (IsBitSet(yAxes, axis))
 			{
-				yCoord += coordsIn[axis]/axisScaleFactors[axis] - totalOffset;
+				yCoord += coord;
 				++numYAxes;
 			}
 		}
@@ -4766,7 +4818,7 @@ void GCodes::ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coo
 			coordsOut[Y_AXIS] = yCoord/numYAxes;
 		}
 	}
-	coordsOut[Z_AXIS] -= (currentZHop + currentBabyStepZOffset)/axisScaleFactors[Z_AXIS];
+	coordsOut[Z_AXIS] -= currentZHop/axisScaleFactors[Z_AXIS];
 }
 
 const char *GCodes::TranslateEndStopResult(EndStopHit es)
@@ -4875,11 +4927,17 @@ bool GCodes::AllAxesAreHomed() const
 	return (axesHomed & allAxes) == allAxes;
 }
 
+// Tell us that the axis is now homed
+void GCodes::SetAxisIsHomed(unsigned int axis)
+{
+	SetBit(axesHomed, axis);
+}
+
 // Write the config-override file returning true if an error occurred
 GCodeResult GCodes::WriteConfigOverrideFile(GCodeBuffer& gb, const StringRef& reply) const
 {
 	const char* const fileName = CONFIG_OVERRIDE_G;
-	FileStore * const f = platform.OpenFile(platform.GetSysDir(), fileName, OpenMode::write);
+	FileStore * const f = platform.OpenSysFile(fileName, OpenMode::write);
 	if (f == nullptr)
 	{
 		reply.printf("Failed to create file %s", fileName);
@@ -4921,7 +4979,7 @@ GCodeResult GCodes::WriteConfigOverrideFile(GCodeBuffer& gb, const StringRef& re
 	if (!ok)
 	{
 		reply.printf("Failed to write file %s", fileName);
-		platform.GetMassStorage()->Delete(platform.GetSysDir(), fileName);
+		platform.DeleteSysFile(fileName);
 		return GCodeResult::error;
 	}
 
@@ -5109,18 +5167,7 @@ OutputBuffer *GCodes::GenerateJsonStatusResponse(int type, int seq, ResponseSour
 // Set up some default values in the move buffer for special moves, e.g. for Z probing and firmware retraction
 void GCodes::SetMoveBufferDefaults()
 {
-	moveBuffer.moveType = 0;
-	moveBuffer.isCoordinated = false;
-	moveBuffer.usingStandardFeedrate = false;
-	moveBuffer.usePressureAdvance = false;
-	moveBuffer.endStopsToCheck = 0;
-	moveBuffer.filePos = noFilePosition;
-	moveBuffer.xAxes = DefaultXAxisMapping;
-	moveBuffer.yAxes = DefaultYAxisMapping;
-	for (size_t drive = numTotalAxes; drive < MaxTotalDrivers; ++drive)
-	{
-		moveBuffer.coords[drive] = 0.0;			// clear extrusion
-	}
+	moveBuffer.SetDefaults(numTotalAxes);
 }
 
 // Resource locking/unlocking
@@ -5195,6 +5242,26 @@ bool GCodes::LockMovement(const GCodeBuffer& gb)
 void GCodes::GrabMovement(const GCodeBuffer& gb)
 {
 	GrabResource(gb, MoveResource);
+}
+
+void GCodes::UnlockMovement(const GCodeBuffer& gb)
+{
+	UnlockResource(gb, MoveResource);
+}
+
+// Unlock the resource if we own it
+void GCodes::UnlockResource(const GCodeBuffer& gb, Resource r)
+{
+	if (resourceOwners[r] == &gb)
+	{
+		GCodeMachineState * mc = &gb.MachineState();
+		do
+		{
+			ClearBit(mc->lockedResources, r);
+			mc = mc->previous;
+		} while (mc != nullptr);
+		resourceOwners[r] = nullptr;
+	}
 }
 
 // Release all locks, except those that were owned when the current macro was started

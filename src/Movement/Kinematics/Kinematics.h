@@ -177,6 +177,10 @@ public:
 	// For example, the first XY move made by a CoreXY machine may be a diagonal move, and it's important to enable the non-moving motor too.
 	virtual AxesBitmap GetConnectedAxes(size_t axis) const;
 
+	// Return a bitmap of axes that move linearly in response to the correct combination of linear motor movements.
+	// This is called to determine whether we can babystep the specified axis independently of regular motion.
+	virtual AxesBitmap GetLinearAxes() const = 0;
+
 	// Override this virtual destructor if your constructor allocates any dynamic memory
 	virtual ~Kinematics() { }
 
