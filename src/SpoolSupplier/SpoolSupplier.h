@@ -9,7 +9,7 @@
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
 
-#define N_Spools		 	1
+#define N_Spools		 	2
 #define Default_temp	 	-273.15
 #define Default_id 			0
 class SpoolSupplier {

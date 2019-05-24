@@ -11,6 +11,7 @@
 #include "GCodes/GCodeBuffer.h"
 #include "Tasks.h"
 #include "Wire.h"
+#include "Hardware/I2C.h"
 #ifdef BCN3D_DEV
 I2CTemHumSensor::I2CTemHumSensor(unsigned int channel, const char *name)
 	: TemperatureSensor(channel, name)
@@ -19,22 +20,7 @@ I2CTemHumSensor::I2CTemHumSensor(unsigned int channel, const char *name)
 	lastTemperature = 0.0;
 	lastResult = TemperatureError::notInitialised;
 }
-void I2CTemHumSensor::InitI2C(){
-	// Initialise the I2C interface, if not already done
 
-	#if defined(I2C_IFACE)
-		if (!i2cInitialised)
-		{
-			MutexLocker lock(Tasks::GetI2CMutex());
-			if (!i2cInitialised)			// test it again, now that we own the mutex
-			{
-				I2C_IFACE.BeginMaster(I2cClockFreq);
-				i2cInitialised = true;
-			}
-		}
-	#endif
-
-}
 TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size_t numToSend, size_t numToReceive, uint32_t& rslt, uint16_t address) const pre(numToSend <= 8){
 
 
@@ -47,13 +33,8 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 			bValues[i] = (uint8_t)command[i];
 		}
 
-		MutexLocker lock(Tasks::GetI2CMutex(),20);
-		if (!lock)
-		{
-			return TemperatureError::busBusy;
-		}
-
-		bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
+		I2C::Init();
+		bytesTransferred = I2C::Transfer(address, bValues, numToSend, numToReceive);
 		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
 		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));
 		reprap.GetPlatform().MessageF(GenericMessage, "numToSend I2C: %d\n", int(numToSend));
@@ -85,9 +66,5 @@ TemperatureError I2CTemHumSensor::DoI2CTransaction(const uint8_t command[], size
 	}
 	return TemperatureError::badResponse;
 
-}
-void I2CTemHumSensor::RestartI2C(){
-	i2cInitialised = false;
-	InitI2C();
 }
 #endif

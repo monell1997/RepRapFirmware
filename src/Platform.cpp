@@ -3565,14 +3565,6 @@ void Platform::GetEndStopConfiguration(size_t axis, EndStopPosition& esType, End
 	inputType = endStopInputType[axis];
 }
 
-void Platform::SetAxisEndstopConfig(size_t axis, size_t numValues, const uint32_t inputNumbers[])
-{
-	axisEndstops[axis].numEndstops = numValues;
-	for (size_t i = 0; i < numValues; ++i)
-	{
-		axisEndstops[axis].endstopNumbers[i] = min<uint32_t>(inputNumbers[i], 255);
-	}
-}
 
 //-----------------------------------------------------------------------------------------------------
 

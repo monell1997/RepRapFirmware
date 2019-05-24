@@ -133,7 +133,6 @@ namespace StepTimer
 		// So we don't, and the step ISR must allow for getting called prematurely.
 		STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IER = TC_IER_CPAS;		// enable the interrupt
 #endif
-		cpu_irq_restore(flags);
 
 #ifdef MOVE_DEBUG
 			++numInterruptsScheduled;

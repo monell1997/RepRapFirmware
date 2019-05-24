@@ -19,7 +19,7 @@
 #endif
 
 #ifdef BCN3D_DEV
-//#include "HDC1010Sensor.h"
+#include "HDC1010Sensor.h"
 #include <Heating/Sensors/HdcSensor.h>
 #endif
 
@@ -149,10 +149,10 @@ TemperatureSensor *TemperatureSensor::Create(unsigned int channel)
 	}
 #endif
 #ifdef BCN3D_DEV
-	/*else if (channel >= FirstHDC1010Channel && channel < FirstHDC1010Channel + Maxi2cTempSensors)
+	else if (channel >= FirstHDC1010Channel && channel < FirstHDC1010Channel + Maxi2cTempSensors)
 	{
 		ts = new HDC1010Sensor(channel);
-	}*/
+	}
 	else if (FirstHDC1011TempChannel <= channel && channel < FirstHDC1011TempChannel + Maxi2cTempSensors)
 	{
 		ts = new HdcTemperatureSensor(channel);

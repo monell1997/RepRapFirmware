@@ -1242,12 +1242,11 @@ uint8_t GCodes::CommI2c_M24C02_read_byte(uint32_t addr, uint8_t memory_pos) // R
 
 		const uint32_t address = addr;
 
-		platform.InitI2c();
+		I2C::Init();
 		uint8_t bValues[MaxI2cBytes];
 		bValues[0] = memory_pos;
 		size_t bytesTransferred;
 		{
-			MutexLocker lock(Tasks::GetI2CMutex());
 			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 1, 1); //Send 1 byte to refer the memory position & Receive such a byte
 		}
 
@@ -1286,14 +1285,14 @@ uint8_t GCodes::CommI2c_M24C02_write_byte(uint32_t addr, uint8_t memory_pos, uin
 
 		const uint32_t address = addr;
 
-		platform.InitI2c();
+		I2C::Init();
 		uint8_t bValues[MaxI2cBytes];
 		bValues[0] = memory_pos;
 		bValues[1] = value;
 		size_t bytesTransferred;
 		{
 			MutexLocker lock(Tasks::GetI2CMutex());
-			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 2, 0); //Send 1 byte to refer the memory position & Receive such a byte
+			bytesTransferred = I2C::Transfer(address, bValues, 2, 0); //Send 1 byte to refer the memory position & Receive such a byte
 		}
 
 		if (bytesTransferred < 1)
@@ -1331,7 +1330,7 @@ uint8_t GCodes::CommI2c_M24C02_erase_page(uint32_t addr, uint8_t memory_pos, uin
 
 		const uint32_t address = addr;
 
-		platform.InitI2c();
+		I2C::Init();
 		uint8_t bValues[MaxI2cBytes];
 		bValues[0] = memory_pos;
 		for (size_t i = 1; i < 17; ++i)
@@ -1341,7 +1340,7 @@ uint8_t GCodes::CommI2c_M24C02_erase_page(uint32_t addr, uint8_t memory_pos, uin
 		size_t bytesTransferred;
 		{
 			MutexLocker lock(Tasks::GetI2CMutex());
-			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 17, 0); //Send 16 to erase a page
+			bytesTransferred = I2C::Transfer(address, bValues, 17, 0); //Send 16 to erase a page
 		}
 
 		if (bytesTransferred < 1)
@@ -1435,11 +1434,10 @@ GCodeResult GCodes::CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &
 
 			numToSend++; // 1 CRC
 
-			platform.InitI2c();
+			I2C::Init();
 			size_t bytesTransferred;
 			{
-				MutexLocker lock(Tasks::GetI2CMutex());
-				bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, 0);
+				bytesTransferred = I2C::Transfer(address, bValues, numToSend, 0);
 			}
 
 			if (bytesTransferred < numToSend)

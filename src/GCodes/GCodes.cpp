@@ -2890,7 +2890,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		}
 
 		if (gb.Seen('J'))
-		{	
+		{
 			jParam = gb.ConvertDistance(gb.GetFValue());
 		}
 		else

@@ -9,7 +9,7 @@
 #include <Heating/Sensors/HdcSensor.h>
 #include "RepRap.h"
 #include "GCodes/GCodeBuffer.h"
-
+#include "Hardware/I2C.h"
 #ifdef BCN3D_DEV
 
 constexpr uint32_t MinimumReadInterval = 2000;		// ms
@@ -122,7 +122,7 @@ HdcSensorHardwareInterface *HdcSensorHardwareInterface::Create(unsigned int rela
 	if (hdcTask == nullptr)
 	{
 		hdcTask = new Task<HdcTaskStackWords>;
-		hdcTask->Create(HdcTask, "HDCSENSOR", nullptr, TaskBase::HeatPriority);
+		hdcTask->Create(HdcTask, "HDCSENSOR", nullptr, TaskPriority::HdcPriority);
 	}
 
 	return activeSensors[relativeChannel];
@@ -165,24 +165,10 @@ void HdcSensorHardwareInterface::DoI2CTransaction(const uint8_t command[], size_
 			bValues[i] = (uint8_t)command[i];
 		}
 
-/*
-		MutexLocker lock(Tasks::GetI2CMutex());
-		if (!lock)
-		{
-			rslt = 0xffff;
-			return;
-		}
-*/
-		reprap.GetPlatform().InitI2c();
-		//MutexLocker lock(hdcMutex);
-		{
-			MutexLocker lock(Tasks::GetI2CMutex(),20);
-			bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
-		}
-		/*reprap.GetPlatform().MessageF(GenericMessage, "address I2C: %d\n", int(address));
-		reprap.GetPlatform().MessageF(GenericMessage, "bytesTransferred I2C: %d\n", int(bytesTransferred));
-		reprap.GetPlatform().MessageF(GenericMessage, "numToSend I2C: %d\n", int(numToSend));
-		reprap.GetPlatform().MessageF(GenericMessage, "numToReceive I2C: %d\n", int(numToReceive));*/
+		I2C::Init();
+
+		bytesTransferred = I2C::Transfer(address, bValues, numToSend, numToReceive);
+
 		if (bytesTransferred < numToSend)
 		{
 		rslt = 0xffff;

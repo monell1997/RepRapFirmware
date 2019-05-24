@@ -10,6 +10,7 @@
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
 #include "GCodes/GCodes.h"
+#include "Hardware/I2C.h"
 #ifdef BCN3D_DEV
 
 // Define the minimum interval between readings.
@@ -23,7 +24,7 @@ HDC1010Sensor::HDC1010Sensor(unsigned int addr_offset)
 }
 void HDC1010Sensor::Init()
 {
-	InitI2C();
+	I2C::Init();
 	TemperatureError rslt;
 	for (unsigned int i = 0; i < 3; ++i)		// try 3 times
 	{
@@ -102,7 +103,7 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 	}
 	else
 	{
-		lastReadingTime = millis();
+		lastReadingTime = millis() + ((temorhum?1000:0)+250*(addr-64));
 
 		static bool rw = false; // request data
 		static const uint8_t command[1] = {0x01};			// Read Memory from dir 0x52 hum
@@ -122,8 +123,7 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 			if (sts != TemperatureError::success)
 			{
 				//lastResult = sts;
-				reprap.GetPlatform().MessageF(HttpMessage, "Restart I2C\n");
-				RestartI2C();
+				//reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
 				t = lastTemperature;
 			}
 			else
@@ -136,13 +136,6 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 				}
 
 				lastTemperature = t;
-				/*if(rawVal < 100 && 0 < rawVal){
-					t = (float) rawVal;
-				}else{
-					lastResult = TemperatureError::hardwareError;
-					delay(1);
-					TryInitI2C();
-				}*/
 			}
 
 			rw = false;
