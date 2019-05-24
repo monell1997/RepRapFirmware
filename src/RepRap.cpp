@@ -235,6 +235,7 @@ void RepRap::Init()
 #endif
 	printMonitor->Init();
 	FilamentMonitor::InitStatic();
+	hdcsensorhi->InitStatic();
 #if SUPPORT_12864_LCD
 	display->Init();
 #endif
@@ -420,6 +421,10 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleSpoolSupplier;
 	spoolsupplier->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = moduleHdcSensorhi;
+	hdcsensorhi->Spin();
 #endif
 
 

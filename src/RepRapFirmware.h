@@ -62,8 +62,9 @@ enum Module : uint8_t
 	moduleWiFi = 14,
 	moduleDisplay = 15,
 	moduleSpoolSupplier = 16,
-	numModules = 17,				// make this one greater than the last module number
-	noModule = 17
+	moduleHdcSensorhi = 17,
+	numModules = 18,				// make this one greater than the last module number
+	noModule = 18
 };
 
 extern const char * const moduleName[];
@@ -94,6 +95,7 @@ class Logger;
 #ifdef BCN3D_DEV
 class TagReaderWriter;
 class SpoolSupplier;
+class HdcSensorHardwareInterface;
 #endif
 #if SUPPORT_IOBITS
 class PortControl;

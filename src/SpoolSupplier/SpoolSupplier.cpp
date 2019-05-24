@@ -179,9 +179,10 @@ void SpoolSupplier::Spin(void){
 
 				target_temperature[i] = heat.GetActiveTemperature(heater);
 
+				reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
 
+				reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
 
-				current_temperature[i] = heat.GetTemperature(heater);
 				}
 			}
 			SendtoPrinter(ImmediateDirectUart0_duet2Message);

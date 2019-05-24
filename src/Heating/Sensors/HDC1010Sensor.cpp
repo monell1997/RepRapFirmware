@@ -14,6 +14,8 @@
 #include <SpoolSupplier/SpoolSupplier.h>
 #ifdef BCN3D_DEV
 
+//#define DEBUG_HDC
+
 // Define the minimum interval between readings.
 const uint32_t MinimumReadInterval = 2000;		// minimum interval between reads, in milliseconds
 const uint32_t Default_delay = 10;		// minimum interval between request and send, in milliseconds
@@ -90,15 +92,7 @@ TemperatureError HDC1010Sensor::TryInitI2C() const
 }
 TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 {
-	// Sample time slot for temp HDC1010Sensor sensor with addr 64 is millis()
-	// Sample time slot for temp HDC1010Sensor sensor with addr 65 is millis() + 250
-	// Sample time slot for temp HDC1010Sensor sensor with addr 66 is millis() + 500
-	// Sample time slot for temp HDC1010Sensor sensor with addr 67 is millis() + 750
-	// Sample time slot for hum HDC1010Sensor sensor with addr 64 is millis() + 1000
-	// Sample time slot for hum HDC1010Sensor sensor with addr 65 is millis() + 1250
-	// Sample time slot for hum HDC1010Sensor sensor with addr 66 is millis() + 1500
-	// Sample time slot for hum HDC1010Sensor sensor with addr 67 is millis() + 1750
-	//static bool init_delay = true; // request data
+
 	if (inInterrupt() || millis()-(250*(addr-64)) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
 	{
 		t = lastTemperature;
@@ -108,72 +102,63 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 
 		lastReadingTime = millis() + (250*(addr-64));
 
-		//static bool rw = false; // request data
 		static const uint8_t command[1] = {0x01};			// Read  hum
 		static const uint8_t command2[1] = {0x00};			// Read  temp
 
 
 		TemperatureError sts;
 		uint32_t rawVal;
-		//reprap.GetPlatform().MessageF(GenericMessage, "%u millis(): %lu \n",addr, millis());
 
-		//if(rw){
-			//init_delay = false;
-			if(temorhum){
-			sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data hum
-			}else{
-			sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data temp
-			}
-
-			delay(Default_delay);
-
-			if(temorhum){
-			sts = DoI2CTransaction(command,0, 2, rawVal, addr);
-			}else{
-			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
-			}
-			if (sts != TemperatureError::success)
-			{
-				//lastResult = sts;
-				reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
-			}
-			else
-			{
-
-				if(temorhum){
-					lastHumidity = ((float) rawVal *100.0 / 65536.0);
-					size_t index = 0;
-					if(N_Spools <= Maxi2cTempSensors){
-						if(N_Spools != Maxi2cTempSensors){
-							if((addr-64) == 0){
-								index = 0;
-							}else{
-								index = 1;
-							}
-							reprap.GetSpoolSupplier().Set_Current_Humidity(index,lastHumidity);
-						}
-
-					}
-					//reprap.GetPlatform().MessageF(HttpMessage, "Humidity %.1f\n",(double)lastHumidity);
-
-				}else{
-					lastTemperature = ((float) rawVal *165.0 / 65536.0)-40.0;
-					//reprap.GetPlatform().MessageF(HttpMessage, "Temp %.1f\n",(double)lastTemperature);
-				}
-
-			}
-
-			if(temorhum)temorhum=false;
-			else temorhum = true;
-/*
-			rw = false;
+		if(temorhum){
+		sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data hum
 		}else{
+		sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data temp
+		}
 
+		delay(Default_delay);
+
+		if(temorhum){
+		sts = DoI2CTransaction(command,0, 2, rawVal, addr);
+		}else{
+		sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
+		}
+		if (sts != TemperatureError::success)
+		{
 			//lastResult = sts;
-			rw = true;
+			reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
+		}
+		else
+		{
 
-		}*/
-		//delay(10);
+			if(temorhum){
+				lastHumidity = ((float) rawVal *100.0 / 65536.0);
+				size_t index = 0;
+				if(N_Spools <= Maxi2cTempSensors){
+					if(N_Spools != Maxi2cTempSensors){
+						if((addr-64) == 0){
+							index = 0;
+						}else{
+							index = 1;
+						}
+						reprap.GetSpoolSupplier().Set_Current_Humidity(index,lastHumidity);
+					}
+
+				}
+#ifdef DEBUG_HDC
+				reprap.GetPlatform().MessageF(HttpMessage, "Humidity %.1f\n",(double)lastHumidity);
+#endif
+			}else{
+				lastTemperature = ((float) rawVal *165.0 / 65536.0)-40.0;
+#ifdef DEBUG_HDC
+				reprap.GetPlatform().MessageF(HttpMessage, "Temp %.1f\n",(double)lastTemperature);
+#endif
+			}
+
+		}
+
+		if(temorhum)temorhum=false;
+		else temorhum = true;
+
 
 	}
 	t = lastTemperature;

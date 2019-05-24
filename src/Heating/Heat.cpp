@@ -154,10 +154,10 @@ void Heat::Init()
 	// Initialise static fields of the DHT sensor
 	DhtSensorHardwareInterface::InitStatic();
 #endif
-#ifdef BCN3D_DEV
+/*#ifdef BCN3D_DEV
 	// Initialise static fields of the HDC sensor
 	HdcSensorHardwareInterface::InitStatic();
-#endif
+#endif*/
 	extrusionMinTemp = HOT_ENOUGH_TO_EXTRUDE;
 	retractionMinTemp = HOT_ENOUGH_TO_RETRACT;
 	coldExtrude = false;
@@ -202,7 +202,6 @@ void Heat::Task()
 			lastHeaterTuned = heaterBeingTuned;
 			heaterBeingTuned = -1;
 		}
-
 		reprap.KickHeatTaskWatchdog();
 
 		// Delay until it is time again

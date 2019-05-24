@@ -19,13 +19,13 @@ constexpr uint32_t MaximumReadTime = 8;			// ms
 
 // Static data members of class HdcSensorHardwareInterface
 Mutex HdcSensorHardwareInterface::hdcMutex;
-Task<HdcSensorHardwareInterface::HdcTaskStackWords> *HdcSensorHardwareInterface::hdcTask = nullptr;
+//Task<HdcSensorHardwareInterface::HdcTaskStackWords> *HdcSensorHardwareInterface::hdcTask = nullptr;
 HdcSensorHardwareInterface *HdcSensorHardwareInterface::activeSensors[Maxi2cTempSensors] = { 0 };
 
-extern "C" void HdcTask(void * pvParameters)
+/*extern "C" void HdcTask(void * pvParameters)
 {
 	HdcSensorHardwareInterface::SensorTask();
-}
+}*/
 
 // Pulse ISR
 //extern "C" void HdcDataTransition(CallbackParameter cp)
@@ -118,12 +118,12 @@ HdcSensorHardwareInterface *HdcSensorHardwareInterface::Create(unsigned int rela
 	{
 		activeSensors[relativeChannel] = new HdcSensorHardwareInterface((uint8_t)(64+relativeChannel));
 	}
-
+/*
 	if (hdcTask == nullptr)
 	{
 		hdcTask = new Task<HdcTaskStackWords>;
 		hdcTask->Create(HdcTask, "HDCSENSOR", nullptr, TaskPriority::HdcPriority);
-	}
+	}*/
 
 	return activeSensors[relativeChannel];
 }
@@ -212,7 +212,7 @@ void HdcSensorHardwareInterface::TakeReading()
 
 		const uint8_t comand_start[3] = {0x02, 0x00, 0x00};			// Configure device normal operation and acquire in sequence, Temperature First
 		const uint8_t comand_temp[1] = {0x00};			// Read Memory from temp
-		//const uint8_t comand_hum[1] = {0x01};			// Read Memory from hum
+		const uint8_t comand_hum[1] = {0x01};			// Read Memory from hum
 
 		uint32_t rawVal = 33330; // 43.9ºC
 
@@ -220,31 +220,31 @@ void HdcSensorHardwareInterface::TakeReading()
 		//TaskCriticalSectionLocker lock;		// make sure the Heat task doesn't interrupt the sequence
 		DoI2CTransaction(comand_start, ARRAY_SIZE(comand_start), 0, rawVal, sensoraddr);
 
-		delay(5);
+		delay(1);
 		//Get Tem
 
 		DoI2CTransaction(comand_temp, ARRAY_SIZE(comand_temp), 0, rawVal, sensoraddr); //request data
 
-		delay(MaximumReadTime);
+		delay(10);
 
 		DoI2CTransaction(comand_temp,0, 2, rawVal, sensoraddr);
 
 		recv_temp = (uint16_t)(rawVal);
-		recv_hum = recv_temp;
+		//recv_hum = recv_temp;
 		/*
 		recv_temp = (uint16_t)(rawVal>>16);
 		recv_hum = (uint16_t)(rawVal && 0xffff);*/
-/*
+		delay(1);
 		//Get Hum
 
 		DoI2CTransaction(comand_hum, ARRAY_SIZE(comand_hum), 0, rawVal, sensoraddr); //request data
 
-		delay(MaximumReadTime);
+		delay(10);
 
 		DoI2CTransaction(comand_hum,0, 2, rawVal, sensoraddr);
 
 		recv_hum = (uint16_t)rawVal;
-*/
+
 
 		//delay(MaximumReadTime);
 
@@ -274,7 +274,7 @@ void HdcSensorHardwareInterface::TakeReading()
 
 // Code executed by the HDC sensor task.
 // This is run at the same priority as the Heat task, so it must not sit in any spin loops.
-/*static*/ void HdcSensorHardwareInterface::SensorTask()
+/*static*/ /*void HdcSensorHardwareInterface::SensorTask()
 {
 	for (;;)
 	{
@@ -291,6 +291,28 @@ void HdcSensorHardwareInterface::TakeReading()
 			delay(MinimumReadInterval/Maxi2cTempSensors);
 		}
 	}
+}*/
+
+/*static*/ void HdcSensorHardwareInterface::Spin()
+{
+
+	const uint32_t now = millis();
+	if (now - lastTime >= MinimumReadInterval)
+	{
+		for (HdcSensorHardwareInterface *&sensor : activeSensors)
+		{
+			{
+				MutexLocker lock(hdcMutex);
+
+				if (sensor != nullptr)
+				{
+					sensor->TakeReading();
+				}
+			}
+		}
+		lastTime = millis();
+	}
+
 }
 
 // Process a reading. If success then update the temperature and humidity and return TemperatureError::success.

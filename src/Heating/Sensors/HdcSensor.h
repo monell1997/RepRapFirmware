@@ -37,7 +37,9 @@ public:
 	static HdcSensorHardwareInterface *Create(unsigned int relativeChannel);
 	static TemperatureError GetTemperatureOrHumidity(unsigned int relativeChannel, float& t, bool wantHumidity);
 	static void InitStatic();
-	static void SensorTask();
+	//static void SensorTask();
+	void Spin();
+
 
 private:
 	HdcSensorHardwareInterface(uint8_t addr);
@@ -49,9 +51,9 @@ private:
 	void TakeReading();
 	TemperatureError ProcessReadings();
 
-	static constexpr uint32_t HdcTaskStackWords = 100;		// task stack size in dwords. 80 was not enough. Use 300 if debugging is enabled.
+	//static constexpr uint32_t HdcTaskStackWords = 100;		// task stack size in dwords. 80 was not enough. Use 300 if debugging is enabled.
 	static Mutex hdcMutex;
-	static Task<HdcTaskStackWords> *hdcTask;
+	//static Task<HdcTaskStackWords> *hdcTask;
 	static HdcSensorHardwareInterface *activeSensors[Maxi2cTempSensors];
 
 	uint8_t sensoraddr;
@@ -60,9 +62,7 @@ private:
 	float lastTemperature, lastHumidity;
 	size_t badTemperatureCount;
 
-	volatile uint16_t lastPulseTime;
-	volatile size_t numPulses;
-	uint16_t pulses[41];			// 1 start bit + 40 data bits
+	uint32_t lastTime;											// The last time our Spin() was called
 	uint16_t recv_temp;			// Recv temp
 	uint16_t recv_hum;			// Recv Hum
 };

@@ -28,6 +28,7 @@ Licence: GPL
 #ifdef BCN3D_DEV
 #include "RFID/TagReaderWriter.h"
 #include "SpoolSupplier/SpoolSupplier.h"
+#include <Heating/Sensors/HdcSensor.h>
 #endif
 enum class ResponseSource
 {
@@ -104,6 +105,7 @@ public:
 #ifdef BCN3D_DEV
 	TagReaderWriter& GetTagReaderWriter() const;
 	SpoolSupplier& GetSpoolSupplier() const;
+	HdcSensorHardwareInterface& GetHdcSensorHardwareInterface() const;
 #endif
 #if SUPPORT_IOBITS
  	PortControl& GetPortControl() const;
@@ -168,6 +170,7 @@ private:
 #ifdef BCN3D_DEV
  	TagReaderWriter* tagreaderwriter;
  	SpoolSupplier* spoolsupplier;
+ 	HdcSensorHardwareInterface* hdcsensorhi;
 #endif
 #if SUPPORT_IOBITS
  	PortControl *portControl;
@@ -223,6 +226,7 @@ inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
 #ifdef BCN3D_DEV
 inline TagReaderWriter& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
 inline SpoolSupplier& RepRap::GetSpoolSupplier() const { return *spoolsupplier; }
+inline HdcSensorHardwareInterface& RepRap::GetHdcSensorHardwareInterface() const { return *hdcsensorhi; }
 #endif
 #if SUPPORT_IOBITS
 inline PortControl& RepRap::GetPortControl() const { return *portControl; }
