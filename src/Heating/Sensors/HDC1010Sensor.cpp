@@ -11,6 +11,7 @@
 #include "GCodes/GCodeBuffer.h"
 #include "GCodes/GCodes.h"
 #include "Hardware/I2C.h"
+#include <SpoolSupplier/SpoolSupplier.h>
 #ifdef BCN3D_DEV
 
 // Define the minimum interval between readings.
@@ -90,69 +91,92 @@ TemperatureError HDC1010Sensor::TryInitI2C() const
 TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 {
 	// Sample time slot for temp HDC1010Sensor sensor with addr 64 is millis()
-	// Sample time slot for temp HDC1010Sensor sensor with addr 65 is millis() + 100
-	// Sample time slot for temp HDC1010Sensor sensor with addr 66 is millis() + 200
-	// Sample time slot for temp HDC1010Sensor sensor with addr 67 is millis() + 300
+	// Sample time slot for temp HDC1010Sensor sensor with addr 65 is millis() + 250
+	// Sample time slot for temp HDC1010Sensor sensor with addr 66 is millis() + 500
+	// Sample time slot for temp HDC1010Sensor sensor with addr 67 is millis() + 750
 	// Sample time slot for hum HDC1010Sensor sensor with addr 64 is millis() + 1000
-	// Sample time slot for hum HDC1010Sensor sensor with addr 65 is millis() + 1100
-	// Sample time slot for hum HDC1010Sensor sensor with addr 66 is millis() + 1200
-	// Sample time slot for hum HDC1010Sensor sensor with addr 67 is millis() + 1300
-	if (inInterrupt() || millis()-((temorhum?1000:0)+250*(addr-64)) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
+	// Sample time slot for hum HDC1010Sensor sensor with addr 65 is millis() + 1250
+	// Sample time slot for hum HDC1010Sensor sensor with addr 66 is millis() + 1500
+	// Sample time slot for hum HDC1010Sensor sensor with addr 67 is millis() + 1750
+	//static bool init_delay = true; // request data
+	if (inInterrupt() || millis()-(250*(addr-64)) - lastReadingTime < MinimumReadInterval)// Reserve time slots for different Sensors i2c
 	{
 		t = lastTemperature;
 	}
 	else
 	{
-		lastReadingTime = millis() + ((temorhum?1000:0)+250*(addr-64));
 
-		static bool rw = false; // request data
-		static const uint8_t command[1] = {0x01};			// Read Memory from dir 0x52 hum
-		static const uint8_t command2[1] = {0x00};			// Read Memory from dir 0x52 hum
+		lastReadingTime = millis() + (250*(addr-64));
+
+		//static bool rw = false; // request data
+		static const uint8_t command[1] = {0x01};			// Read  hum
+		static const uint8_t command2[1] = {0x00};			// Read  temp
 
 
 		TemperatureError sts;
 		uint32_t rawVal;
 		//reprap.GetPlatform().MessageF(GenericMessage, "%u millis(): %lu \n",addr, millis());
 
-		if(rw){
+		//if(rw){
+			//init_delay = false;
 			if(temorhum){
-			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
+			sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data hum
 			}else{
+			sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data temp
+			}
+
+			delay(Default_delay);
+
+			if(temorhum){
 			sts = DoI2CTransaction(command,0, 2, rawVal, addr);
+			}else{
+			sts = DoI2CTransaction(command2,0, 2, rawVal, addr);
 			}
 			if (sts != TemperatureError::success)
 			{
 				//lastResult = sts;
-				//reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
-				t = lastTemperature;
+				reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
 			}
 			else
 			{
 
 				if(temorhum){
-					t = ((float) rawVal *100.0 / 65536.0);
+					lastHumidity = ((float) rawVal *100.0 / 65536.0);
+					size_t index = 0;
+					if(N_Spools <= Maxi2cTempSensors){
+						if(N_Spools != Maxi2cTempSensors){
+							if((addr-64) == 0){
+								index = 0;
+							}else{
+								index = 1;
+							}
+							reprap.GetSpoolSupplier().Set_Current_Humidity(index,lastHumidity);
+						}
+
+					}
+					//reprap.GetPlatform().MessageF(HttpMessage, "Humidity %.1f\n",(double)lastHumidity);
+
 				}else{
-					t = ((float) rawVal *165.0 / 65536.0)-40.0;
+					lastTemperature = ((float) rawVal *165.0 / 65536.0)-40.0;
+					//reprap.GetPlatform().MessageF(HttpMessage, "Temp %.1f\n",(double)lastTemperature);
 				}
 
-				lastTemperature = t;
 			}
 
+			if(temorhum)temorhum=false;
+			else temorhum = true;
+/*
 			rw = false;
 		}else{
-			if(temorhum){
-			sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data
-			}else{
-			sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data
-			}
+
 			//lastResult = sts;
-			t = lastTemperature;
 			rw = true;
 
-		}
+		}*/
 		//delay(10);
 
 	}
+	t = lastTemperature;
 	return lastResult;
 }
 

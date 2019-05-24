@@ -22,6 +22,10 @@ SpoolSupplier::SpoolSupplier() {
 
 		current_temperature[i] = Default_temp;
 
+	// Set Default a default hum
+
+		current_humidity[i] = Default_hum;
+
 	// Set Default filament remaining
 
 		spool_remaining[i] = 0;
@@ -39,6 +43,12 @@ uint8_t SpoolSupplier::Get_Spool_Remaining(size_t idex){
 }
 void SpoolSupplier::Set_Spool_Remaining(size_t idex, uint8_t rem){
 	spool_remaining[idex] = rem;
+}
+float SpoolSupplier::Get_Current_Humidity(size_t idex){
+	return current_humidity[idex];
+}
+void SpoolSupplier::Set_Current_Humidity(size_t idex, float current){
+	current_humidity[idex] = current;
 }
 float SpoolSupplier::Get_Target_Temperature(size_t idex){
 	return target_temperature[idex];
@@ -91,6 +101,13 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			r->catf("%u",spool_remaining[i]);
 		}
+		r->cat(" H");
+		for(i = 0; i<N_Spools;i++){
+
+			if(i >0){r->cat(":");}
+
+			r->catf("%.1f",(double)current_humidity[i]);
+		}
 		r->cat(" C");
 		for(i = 0; i<N_Spools;i++){
 
@@ -136,10 +153,11 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 	}
 	for(int i = 0; i<N_Spools;i++){
 
-		r->catf("[\"spool_id_%d\":\"%u\"",i, spool_id[i]);
-		r->catf(",\"spool_rem\":\"%u\"",spool_remaining[i]);
-		r->catf(",\"current_temp\":\"%.1f\"",(double)current_temperature[i]);
-		r->catf(",\"target_temp\":\"%.1f\"]",(double)target_temperature[i]);
+		r->catf("[\"sl_id_%d\":\"%u\"",i, spool_id[i]);
+		r->catf(",\"sl_rem\":\"%u\"",spool_remaining[i]);
+		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
+		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);
+		r->catf(",\"t_t\":\"%.1f\"]",(double)target_temperature[i]);
 	}
 	r->cat("}\n");
 	reprap.GetPlatform().Message(type, r);

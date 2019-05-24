@@ -4612,6 +4612,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			if (gb.Seen('S'))
 			{
 
+				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Current Humidity
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Current_Humidity(i,temps_val[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+			if (gb.Seen('S'))
+			{
+
 				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Target
 				for(size_t i = 0; i<NumtoRecv;i++){
 					reprap.GetSpoolSupplier().Set_Target_Temperature(i,temps_val[i]);

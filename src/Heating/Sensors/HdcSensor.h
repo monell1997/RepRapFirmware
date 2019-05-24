@@ -26,7 +26,7 @@ enum class HdcSensorType
 	Hdc1010
 };
 
-// This class represents a DHT sensor attached to a particular SPI CS pin
+// This class represents a HDC sensor attached to a particular SPI CS pin
 class HdcSensorHardwareInterface
 {
 public:
