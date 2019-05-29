@@ -20,7 +20,7 @@ uint8_t pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
  #define MIFAREDEBUG
 
 // If using Native Port on Arduino Zero or Due define as SerialUSB
-#define PN532DEBUGPRINT Serial
+//#define PN532DEBUGPRINT Serial
 //#define PN532DEBUGPRINT SerialUSB
 
 
@@ -70,7 +70,7 @@ void TagReaderWriter::begin() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-    delay(1000);
+	delay(2);
 
     // not exactly sure why but we have to send a dummy command to get synced up
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
@@ -226,6 +226,10 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t
     return false;
   }
 
+#ifdef PN532DEBUG
+	  reprap.GetPlatform().MessageF(GenericMessage, "ack'd command!\n");
+#endif
+
   // For SPI only wait for the chip to be ready again.
   // This is unnecessary with I2C.
   if (_usingSPI) {
@@ -233,6 +237,7 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t
       return false;
     }
   }
+
 
   return true; // ack'd command
 }
@@ -618,13 +623,13 @@ bool TagReaderWriter::inListPassiveTarget() {
         #endif
     	  reprap.GetPlatform().MessageF(GenericMessage, "Number of tags inlisted:\n");
 
-        PN532DEBUGPRINT.println(pn532_packetbuffer[7]);
+        //PN532DEBUGPRINT.println(pn532_packetbuffer[7]);
         return false;
       }
 
       _inListedTag = pn532_packetbuffer[8];
       reprap.GetPlatform().MessageF(GenericMessage, "Tag number: ");
-      PN532DEBUGPRINT.println(_inListedTag);
+      //PN532DEBUGPRINT.println(_inListedTag);
 
       return true;
     } else {
@@ -707,7 +712,7 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t
   #ifdef MIFAREDEBUG
     reprap.GetPlatform().MessageF(GenericMessage, "Trying to authenticate card ");
     TagReaderWriter::PrintHex(_uid, _uidLen);
-    reprap.GetPlatform().MessageF(GenericMessage, "Using authentication KEY ");PN532DEBUGPRINT.print(keyNumber ? 'B' : 'A');reprap.GetPlatform().MessageF(GenericMessage, ": ");
+    reprap.GetPlatform().MessageF(GenericMessage, "Using authentication KEY ");reprap.GetPlatform().MessageF(GenericMessage,"%c", (keyNumber ? 'B' : 'A'));reprap.GetPlatform().MessageF(GenericMessage, ": ");
     TagReaderWriter::PrintHex(_key, 6);
   #endif
 
@@ -1370,10 +1375,11 @@ bool TagReaderWriter::isready() {
       if (_hardwareSPI) SPI.beginTransaction(PN532_SPI_SETTING);
     #endif
     //digitalWrite(_ss, LOW);
-    delay(2);
+    ///delay(2);
 
-    const uint8_t dataOut[1] = {PN532_SPI_STATREAD};
-    uint8_t rawBytes[8];
+    //uint8_t dataOut[1] = {0};
+    uint8_t dataOut[1] = {PN532_SPI_STATREAD};
+    uint8_t rawBytes[8] = {0};
 
 	MutexLocker lock(Tasks::GetSpiMutex(), 10);
 	if (!lock)
@@ -1386,7 +1392,11 @@ bool TagReaderWriter::isready() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-    sspi_transceive_packet(dataOut, rawBytes, 1);
+	//delay(2);
+	sspi_write_packet(dataOut, 1);
+	delayMicroseconds(1);
+	sspi_read_packet(rawBytes, 1);
+	//sspi_transceive_packet(dataOut,rawBytes,0);
 
     delayMicroseconds(1);
 	sspi_deselect_device(&device);
@@ -1394,8 +1404,11 @@ bool TagReaderWriter::isready() {
 
     // read uint8_t
     uint8_t x = rawBytes[0];
-    reprap.GetPlatform().MessageF(GenericMessage, " 0x");
-    reprap.GetPlatform().MessageF(GenericMessage, "%02x",x);
+   // for(size_t i = 0; i < 8;i++){
+    	reprap.GetPlatform().MessageF(GenericMessage, " 0x");
+    	reprap.GetPlatform().MessageF(GenericMessage, "%02x ",rawBytes[0]);
+   // }
+
     //digitalWrite(_ss, HIGH);
     #ifdef SPI_HAS_TRANSACTION
       if (_hardwareSPI) SPI.endTransaction();
@@ -1442,23 +1455,38 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
       if (_hardwareSPI) SPI.beginTransaction(PN532_SPI_SETTING);
     #endif
 
+
+     MutexLocker lock(Tasks::GetSpiMutex(), 10);
+	if (!lock)
+	{
+		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
+		return;
+	}
+
     sspi_master_setup_device(&device);
 	delayMicroseconds(1);
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-    const uint8_t dataOut[1] = {PN532_SPI_DATAREAD};
 
-	sspi_transceive_packet(dataOut, buff, n);
+    uint8_t dataOut[1] = {PN532_SPI_DATAREAD};
 
-    //spi_write(PN532_SPI_DATAREAD);
+    uint8_t rawBytes[8] = {0};
+
+
+    //delay(2);
+
+    sspi_write_packet(dataOut, ARRAY_SIZE(dataOut));
+
+    delayMicroseconds(1);
+
+    sspi_read_packet(rawBytes,n);
 
     #ifdef PN532DEBUG
       reprap.GetPlatform().MessageF(GenericMessage, "Reading: ");
     #endif
     for (uint8_t i=0; i<n; i++) {
-      /*delay(1);
-      buff[i] = spi_read();*/
+      buff[i] = rawBytes[i];
       #ifdef PN532DEBUG
         reprap.GetPlatform().MessageF(GenericMessage, " 0x");
         reprap.GetPlatform().MessageF(GenericMessage, "%02x",buff[i]);
@@ -1501,36 +1529,60 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     #ifdef SPI_HAS_TRANSACTION
       if (_hardwareSPI) SPI.beginTransaction(PN532_SPI_SETTING);
     #endif
+
+     MutexLocker lock(Tasks::GetSpiMutex(), 10);
+	if (!lock)
+	{
+		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
+		return;
+	}
+
     sspi_master_setup_device(&device);
 	delayMicroseconds(1);
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-    uint8_t dataOut[1] = {PN532_SPI_DATAWRITE};
-    uint8_t rawBytes[8];
+	//delay(2);     // or whatever the delay is for waking up the board
 
-    //spi_write(PN532_SPI_DATAWRITE);
-    sspi_transceive_packet(dataOut, rawBytes, 0);
+    uint8_t dataOut_1[1] = {0};
+    //uint8_t dataOut_7[7] = {PN532_SPI_DATAWRITE,PN532_PREAMBLE,PN532_PREAMBLE,PN532_STARTCODE2,cmdlen,(uint8_t)(~cmdlen + 1),PN532_HOSTTOPN532};
+    //uint8_t rawBytes[8];
+
+
+    //sspi_transceive_packet(dataOut_7, rawBytes, ARRAY_SIZE(dataOut_7));
+
+    //sspi_write_packet(dataOut_7, 7);
+
+    dataOut_1[0] = PN532_SPI_DATAWRITE;
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = PN532_PREAMBLE;
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = PN532_PREAMBLE;
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = PN532_STARTCODE2;
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = cmdlen;
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = (uint8_t)(~cmdlen + 1);
+    sspi_write_packet(dataOut_1,1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = PN532_HOSTTOPN532;
+    sspi_write_packet(dataOut_1,1);
+
+
 
     checksum = PN532_PREAMBLE + PN532_PREAMBLE + PN532_STARTCODE2;
-    //spi_write(PN532_PREAMBLE);
-    dataOut[0] = PN532_PREAMBLE;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(PN532_PREAMBLE);
-    dataOut[0] = PN532_PREAMBLE;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(PN532_STARTCODE2);
-    dataOut[0] = PN532_STARTCODE2;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(cmdlen);
-    dataOut[0] = cmdlen;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(~cmdlen + 1);
-    dataOut[0] = (~cmdlen + 1);
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(PN532_HOSTTOPN532);
-    dataOut[0] = PN532_HOSTTOPN532;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
     checksum += PN532_HOSTTOPN532;
 
     #ifdef PN532DEBUG
@@ -1544,20 +1596,23 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 
     for (uint8_t i=0; i<cmdlen-1; i++) {
       //spi_write(cmd[i]);
-      dataOut[0] = cmd[i];
-      sspi_transceive_packet(dataOut, rawBytes, 0);
+    	delayMicroseconds(1);
+    	dataOut_1[0] = cmd[i];
+    	sspi_write_packet(dataOut_1, 1);
+    	//sspi_transceive_packet(dataOut_1,rawBytes ,ARRAY_SIZE(dataOut_1));
       checksum += cmd[i];
       #ifdef PN532DEBUG
         reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)cmd[i]);
       #endif
     }
 
-    //spi_write(~checksum);
-    dataOut[0] = (~checksum);
-    sspi_transceive_packet(dataOut, rawBytes, 0);
-    //spi_write(PN532_POSTAMBLE);
-    dataOut[0] = PN532_POSTAMBLE;
-    sspi_transceive_packet(dataOut, rawBytes, 0);
+    delayMicroseconds(1);
+    dataOut_1[0] = (~checksum);
+    sspi_write_packet(dataOut_1,  1);
+
+    delayMicroseconds(1);
+    dataOut_1[0] = PN532_POSTAMBLE;
+    sspi_write_packet(dataOut_1,  1);
 
     delayMicroseconds(1);
 	sspi_deselect_device(&device);

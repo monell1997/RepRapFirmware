@@ -235,7 +235,9 @@ void RepRap::Init()
 #endif
 	printMonitor->Init();
 	FilamentMonitor::InitStatic();
+#ifdef BCN3D_DEV
 	hdcsensorhi->InitStatic();
+#endif
 #if SUPPORT_12864_LCD
 	display->Init();
 #endif

@@ -18,7 +18,7 @@
 
 // Define the minimum interval between readings.
 const uint32_t MinimumReadInterval = 2000;		// minimum interval between reads, in milliseconds
-const uint32_t Default_delay = 10;		// minimum interval between request and send, in milliseconds
+const uint32_t Default_delay = 1;		// minimum interval between request and send, in milliseconds
 
 HDC1010Sensor::HDC1010Sensor(unsigned int addr_offset)
 	: I2CTemHumSensor(addr_offset, "HDC1010 Sensor I2C")// addr between 64-67
@@ -111,11 +111,14 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 
 		if(temorhum){
 		sts = DoI2CTransaction(command, ARRAY_SIZE(command), 0, rawVal, addr); //request data hum
+		//delay(2);
+		delayMicroseconds(1800);
 		}else{
 		sts = DoI2CTransaction(command2, ARRAY_SIZE(command2), 0, rawVal, addr); //request data temp
+		delay(1);
 		}
 
-		delay(Default_delay);
+
 
 		if(temorhum){
 		sts = DoI2CTransaction(command,0, 2, rawVal, addr);
@@ -125,7 +128,12 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 		if (sts != TemperatureError::success)
 		{
 			//lastResult = sts;
-			reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
+			static bool fail = false;
+			if(!fail){
+				fail = true;
+				reprap.GetPlatform().MessageF(HttpMessage, "I2c Rx Error\n");
+			}
+			//
 		}
 		else
 		{
