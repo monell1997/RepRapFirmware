@@ -31,7 +31,7 @@ uint8_t pn532_packetbuffer[PN532_PACKBUFFSIZ];
     #define _BV(bit) (1<<(bit))
 #endif
 
-const uint32_t PN532_Frequency = 400000;	// maximum for PN532 is also 400kHz
+const uint32_t PN532_Frequency = 100000;	// maximum for PN532 is also 400kHz
 
 
 const uint8_t PN532_SpiMode = SPI_MODE_0;
@@ -70,7 +70,7 @@ void TagReaderWriter::begin() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	delay(2);
+	delay(1000);
 
     // not exactly sure why but we have to send a dummy command to get synced up
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
@@ -226,9 +226,6 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t
     return false;
   }
 
-#ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "ack'd command!\n");
-#endif
 
   // For SPI only wait for the chip to be ready again.
   // This is unnecessary with I2C.
@@ -1374,11 +1371,8 @@ bool TagReaderWriter::isready() {
     #ifdef SPI_HAS_TRANSACTION
       if (_hardwareSPI) SPI.beginTransaction(PN532_SPI_SETTING);
     #endif
-    //digitalWrite(_ss, LOW);
-    ///delay(2);
 
-    //uint8_t dataOut[1] = {0};
-    uint8_t dataOut[1] = {PN532_SPI_STATREAD};
+    uint8_t dataOut[1] = {0};
     uint8_t rawBytes[8] = {0};
 
 	MutexLocker lock(Tasks::GetSpiMutex(), 10);
@@ -1392,24 +1386,20 @@ bool TagReaderWriter::isready() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	//delay(2);
+	delay(2);
+
+	dataOut[0]=data_lsbfirst_w(PN532_SPI_STATREAD);
 	sspi_write_packet(dataOut, 1);
-	delayMicroseconds(1);
+
 	sspi_read_packet(rawBytes, 1);
-	//sspi_transceive_packet(dataOut,rawBytes,0);
 
     delayMicroseconds(1);
 	sspi_deselect_device(&device);
 	delayMicroseconds(1);
 
     // read uint8_t
-    uint8_t x = rawBytes[0];
-   // for(size_t i = 0; i < 8;i++){
-    	reprap.GetPlatform().MessageF(GenericMessage, " 0x");
-    	reprap.GetPlatform().MessageF(GenericMessage, "%02x ",rawBytes[0]);
-   // }
+    uint8_t x = data_lsbfirst_r(rawBytes[0]);
 
-    //digitalWrite(_ss, HIGH);
     #ifdef SPI_HAS_TRANSACTION
       if (_hardwareSPI) SPI.endTransaction();
     #endif
@@ -1469,14 +1459,15 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
 	delayMicroseconds(1);
 
 
-    uint8_t dataOut[1] = {PN532_SPI_DATAREAD};
+    uint8_t dataOut[1] = {0};
 
     uint8_t rawBytes[8] = {0};
 
 
-    //delay(2);
+    delay(2);
 
-    sspi_write_packet(dataOut, ARRAY_SIZE(dataOut));
+    dataOut[0]=data_lsbfirst_w(PN532_SPI_DATAREAD);
+    sspi_write_packet(dataOut, 1);
 
     delayMicroseconds(1);
 
@@ -1486,7 +1477,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
       reprap.GetPlatform().MessageF(GenericMessage, "Reading: ");
     #endif
     for (uint8_t i=0; i<n; i++) {
-      buff[i] = rawBytes[i];
+      buff[i] = data_lsbfirst_r(rawBytes[i]);
       #ifdef PN532DEBUG
         reprap.GetPlatform().MessageF(GenericMessage, " 0x");
         reprap.GetPlatform().MessageF(GenericMessage, "%02x",buff[i]);
@@ -1542,46 +1533,31 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	//delay(2);     // or whatever the delay is for waking up the board
+	delay(2);     // or whatever the delay is for waking up the board
 
     uint8_t dataOut_1[1] = {0};
-    //uint8_t dataOut_7[7] = {PN532_SPI_DATAWRITE,PN532_PREAMBLE,PN532_PREAMBLE,PN532_STARTCODE2,cmdlen,(uint8_t)(~cmdlen + 1),PN532_HOSTTOPN532};
-    //uint8_t rawBytes[8];
 
-
-    //sspi_transceive_packet(dataOut_7, rawBytes, ARRAY_SIZE(dataOut_7));
-
-    //sspi_write_packet(dataOut_7, 7);
-
-    dataOut_1[0] = PN532_SPI_DATAWRITE;
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w(PN532_SPI_DATAWRITE);
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = PN532_PREAMBLE;
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w(PN532_PREAMBLE);
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = PN532_PREAMBLE;
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w(PN532_PREAMBLE);
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = PN532_STARTCODE2;
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w(PN532_STARTCODE2);
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = cmdlen;
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w(cmdlen);
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = (uint8_t)(~cmdlen + 1);
-    sspi_write_packet(dataOut_1,1);
-
+    dataOut_1[0]=data_lsbfirst_w((uint8_t)(~cmdlen + 1));
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = PN532_HOSTTOPN532;
-    sspi_write_packet(dataOut_1,1);
-
-
-
+    dataOut_1[0]=data_lsbfirst_w(PN532_HOSTTOPN532);
+    sspi_write_packet(dataOut_1,  1);
+    delayMicroseconds(1);
     checksum = PN532_PREAMBLE + PN532_PREAMBLE + PN532_STARTCODE2;
     checksum += PN532_HOSTTOPN532;
 
@@ -1595,23 +1571,22 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     #endif
 
     for (uint8_t i=0; i<cmdlen-1; i++) {
-      //spi_write(cmd[i]);
-    	delayMicroseconds(1);
-    	dataOut_1[0] = cmd[i];
+
+    	dataOut_1[0] = data_lsbfirst_w(cmd[i]);
     	sspi_write_packet(dataOut_1, 1);
-    	//sspi_transceive_packet(dataOut_1,rawBytes ,ARRAY_SIZE(dataOut_1));
-      checksum += cmd[i];
+    	delayMicroseconds(1);
+    	checksum += cmd[i];
       #ifdef PN532DEBUG
         reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)cmd[i]);
       #endif
     }
 
-    delayMicroseconds(1);
-    dataOut_1[0] = (~checksum);
-    sspi_write_packet(dataOut_1,  1);
 
+    dataOut_1[0] = data_lsbfirst_w((~checksum));
+    sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
-    dataOut_1[0] = PN532_POSTAMBLE;
+
+    dataOut_1[0] = data_lsbfirst_w(PN532_POSTAMBLE);
     sspi_write_packet(dataOut_1,  1);
 
     delayMicroseconds(1);
@@ -1630,4 +1605,36 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 }
 /************** low level SPI */
 
+// bit shifting
 
+uint8_t TagReaderWriter::data_lsbfirst_w(uint8_t b){ // WRITE
+
+	uint8_t w = 0x00;
+
+	for (uint8_t i=0 ; i < 8 ; i++ )
+	{
+		if((b & (1 << i))){
+			w |= 1 << (7 - i);
+		}
+
+	}
+	//reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)w);
+	return w;
+}
+// bit shifting
+
+uint8_t TagReaderWriter::data_lsbfirst_r(uint8_t b){ //READ
+
+	uint8_t r = 0x00;
+
+	for (uint8_t i=0 ; i < 8 ; i++ )
+	{
+
+		if((b & (1 << i))){
+			r |= 1 << (7 - i);
+		}
+
+	}
+	//reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)r);
+	return r;
+}

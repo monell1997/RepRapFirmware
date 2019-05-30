@@ -183,6 +183,8 @@ class TagReaderWriter{
   bool    _hardwareSPI;  // True is using hardware SPI, false if using software SPI.
 
   // Low level communication functions that handle both SPI and I2C.
+  uint8_t data_lsbfirst_w(uint8_t b);
+  uint8_t data_lsbfirst_r(uint8_t b);
   void readdata(uint8_t* buff, uint8_t n);
   void writecommand(uint8_t* cmd, uint8_t cmdlen);
   bool isready();

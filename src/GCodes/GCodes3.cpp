@@ -1683,7 +1683,7 @@ GCodeResult GCodes::CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const St
 //Deal with M770
 GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply){
 
-	uint8_t ss = 0;
+/*	uint8_t ss = 0;
 	if (gb.Seen('C')){
 		ss = (uint8_t)gb.GetIValue();
 
@@ -1697,10 +1697,22 @@ GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply)
 		reply.copy("Parameter missing");
 		return GCodeResult::badOrMissingParameter;
 	}
-
+*/
 
 	reprap.GetTagReaderWriter().begin();
 
+	//platform.MessageF(GenericMessage,"Get FW version...");
+	uint32_t versiondata = reprap.GetTagReaderWriter().getFirmwareVersion();
+	if (! versiondata) {
+		reply.copy("Didn't find PN53x board");
+		return GCodeResult::error;
+	}
+	  // Got ok data, print it out!
+	  reprap.GetPlatform().MessageF(GenericMessage,"Found chip PN5");
+	  reprap.GetPlatform().MessageF(GenericMessage, "0");
+	  reprap.GetPlatform().MessageF(GenericMessage, "%02x \n", (uint8_t)((versiondata>>24) & 0xFF));
+	  reprap.GetPlatform().MessageF(GenericMessage,"Firmware ver. "); reprap.GetPlatform().MessageF(GenericMessage, "%lu \n", ((versiondata>>16) & 0xFF));
+	  reprap.GetPlatform().MessageF(GenericMessage,"."); reprap.GetPlatform().MessageF(GenericMessage, "%lu \n", ((versiondata>>8) & 0xFF));
 	return GCodeResult::ok;
 }
 #endif
