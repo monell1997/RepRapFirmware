@@ -16,8 +16,8 @@ uint8_t pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 uint8_t pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
- #define PN532DEBUG
- #define MIFAREDEBUG
+// #define PN532DEBUG
+// #define MIFAREDEBUG
 
 // If using Native Port on Arduino Zero or Due define as SerialUSB
 //#define PN532DEBUGPRINT Serial
@@ -70,7 +70,7 @@ void TagReaderWriter::begin() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	delay(1000);
+	delay(2);
 
     // not exactly sure why but we have to send a dummy command to get synced up
     pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
@@ -1386,7 +1386,7 @@ bool TagReaderWriter::isready() {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	delay(2);
+	//delay(2);
 
 	dataOut[0]=data_lsbfirst_w(PN532_SPI_STATREAD);
 	sspi_write_packet(dataOut, 1);
@@ -1464,20 +1464,20 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
     uint8_t rawBytes[8] = {0};
 
 
-    delay(2);
+    //delay(2);
 
     dataOut[0]=data_lsbfirst_w(PN532_SPI_DATAREAD);
     sspi_write_packet(dataOut, 1);
 
-    delayMicroseconds(1);
-
-    sspi_read_packet(rawBytes,n);
 
     #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, "Reading: ");
+    reprap.GetPlatform().MessageF(GenericMessage, "Reading: ");
     #endif
+
     for (uint8_t i=0; i<n; i++) {
-      buff[i] = data_lsbfirst_r(rawBytes[i]);
+      delayMicroseconds(1);
+      sspi_read_packet(rawBytes,1);
+      buff[i] = data_lsbfirst_r(rawBytes[0]);
       #ifdef PN532DEBUG
         reprap.GetPlatform().MessageF(GenericMessage, " 0x");
         reprap.GetPlatform().MessageF(GenericMessage, "%02x",buff[i]);
@@ -1514,7 +1514,7 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     cmdlen++;
 
     #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, "\nSending: ");
+      //reprap.GetPlatform().MessageF(GenericMessage, "\nSending: ");
     #endif
 
     #ifdef SPI_HAS_TRANSACTION
@@ -1533,36 +1533,43 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 	sspi_select_device(&device);
 	delayMicroseconds(1);
 
-	delay(2);     // or whatever the delay is for waking up the board
+	//delay(2);     // or whatever the delay is for waking up the board
 
     uint8_t dataOut_1[1] = {0};
 
     dataOut_1[0]=data_lsbfirst_w(PN532_SPI_DATAWRITE);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w(PN532_PREAMBLE);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w(PN532_PREAMBLE);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w(PN532_STARTCODE2);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w(cmdlen);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w((uint8_t)(~cmdlen + 1));
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     dataOut_1[0]=data_lsbfirst_w(PN532_HOSTTOPN532);
     sspi_write_packet(dataOut_1,  1);
     delayMicroseconds(1);
+
     checksum = PN532_PREAMBLE + PN532_PREAMBLE + PN532_STARTCODE2;
     checksum += PN532_HOSTTOPN532;
 
     #ifdef PN532DEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_PREAMBLE);
+      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_PREAMBLE);
       reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_PREAMBLE);
       reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_STARTCODE2);
       reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)cmdlen);

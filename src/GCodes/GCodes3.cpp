@@ -1709,10 +1709,9 @@ GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply)
 	}
 	  // Got ok data, print it out!
 	  reprap.GetPlatform().MessageF(GenericMessage,"Found chip PN5");
-	  reprap.GetPlatform().MessageF(GenericMessage, "0");
-	  reprap.GetPlatform().MessageF(GenericMessage, "%02x \n", (uint8_t)((versiondata>>24) & 0xFF));
-	  reprap.GetPlatform().MessageF(GenericMessage,"Firmware ver. "); reprap.GetPlatform().MessageF(GenericMessage, "%lu \n", ((versiondata>>16) & 0xFF));
-	  reprap.GetPlatform().MessageF(GenericMessage,"."); reprap.GetPlatform().MessageF(GenericMessage, "%lu \n", ((versiondata>>8) & 0xFF));
+	  reprap.GetPlatform().MessageF(GenericMessage, "%x \n", (uint8_t)((versiondata>>16) & 0xFF));
+	  reprap.GetPlatform().MessageF(GenericMessage,"Firmware ver. "); reprap.GetPlatform().MessageF(GenericMessage, "%x", (uint8_t)((versiondata>>8) & 0xFF));
+	  reprap.GetPlatform().MessageF(GenericMessage,"."); reprap.GetPlatform().MessageF(GenericMessage, "%x \n", (uint8_t)(versiondata& 0xFF));
 	return GCodeResult::ok;
 }
 #endif
