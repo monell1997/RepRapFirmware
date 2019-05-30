@@ -12,6 +12,9 @@
 #include <RFID/TagReaderWriter.h>
 #include "SharedSpi.h"
 
+// Static data
+Mutex TagReaderWriter::TagReaderWriterMutex;
+
 uint8_t pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 uint8_t pn532response_firmwarevers[] = {0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
@@ -31,7 +34,7 @@ uint8_t pn532_packetbuffer[PN532_PACKBUFFSIZ];
     #define _BV(bit) (1<<(bit))
 #endif
 
-const uint32_t PN532_Frequency = 100000;	// maximum for PN532 is also 400kHz
+const uint32_t PN532_Frequency = 400000;	// maximum for PN532 is also 400kHz
 
 
 const uint8_t PN532_SpiMode = SPI_MODE_0;
@@ -53,6 +56,7 @@ TagReaderWriter::TagReaderWriter(uint8_t ss):
 	device.spiMode = PN532_SpiMode;
 	device.clockFrequency = PN532_Frequency;
 	isInit = false;
+	TagReaderWriterMutex.Create("TagReaderWriter");
 }
 
 /**************************************************************************/
@@ -61,6 +65,7 @@ TagReaderWriter::TagReaderWriter(uint8_t ss):
 */
 /**************************************************************************/
 void TagReaderWriter::begin() {
+
 
     sspi_master_init(&device, 8);
 
@@ -98,18 +103,18 @@ void TagReaderWriter::PrintHex(const uint8_t * data, const uint32_t numuint8_ts)
   uint32_t szPos;
   for (szPos=0; szPos < numuint8_ts; szPos++)
   {
-	reprap.GetPlatform().MessageF(GenericMessage, "0x");
+	reprap.GetPlatform().MessageF(HttpMessage, "0x");
     // Append leading 0 for small values
     if (data[szPos] <= 0xF){
-    	reprap.GetPlatform().MessageF(GenericMessage, "0");
-    	reprap.GetPlatform().MessageF(GenericMessage, "%02x", data[szPos]&0xff);
+    	reprap.GetPlatform().MessageF(HttpMessage, "0");
+    	reprap.GetPlatform().MessageF(HttpMessage, "%02x", data[szPos]&0xff);
     }
     if ((numuint8_ts > 1) && (szPos != numuint8_ts - 1))
     {
-    	reprap.GetPlatform().MessageF(GenericMessage, " ");
+    	reprap.GetPlatform().MessageF(HttpMessage, " ");
     }
   }
-  reprap.GetPlatform().MessageF(GenericMessage, "\n");
+  reprap.GetPlatform().MessageF(HttpMessage, "\n");
 }
 
 /**************************************************************************/
@@ -130,23 +135,23 @@ void TagReaderWriter::PrintHexChar(const uint8_t * data, const uint32_t numuint8
   {
     // Append leading 0 for small values
     if (data[szPos] <= 0xF){
-    	reprap.GetPlatform().MessageF(GenericMessage, "0");
-    	reprap.GetPlatform().MessageF(GenericMessage, "%02x", data[szPos]);
+    	reprap.GetPlatform().MessageF(HttpMessage, "0");
+    	reprap.GetPlatform().MessageF(HttpMessage, "%02x", data[szPos]);
     }
     if ((numuint8_ts > 1) && (szPos != numuint8_ts - 1))
     {
-    	reprap.GetPlatform().MessageF(GenericMessage, " ");
+    	reprap.GetPlatform().MessageF(HttpMessage, " ");
     }
   }
-  reprap.GetPlatform().MessageF(GenericMessage, "  ");
+  reprap.GetPlatform().MessageF(HttpMessage, "  ");
   for (szPos=0; szPos < numuint8_ts; szPos++)
   {
     if (data[szPos] <= 0x1F)
-    	reprap.GetPlatform().MessageF(GenericMessage, ".");
+    	reprap.GetPlatform().MessageF(HttpMessage, ".");
     else
-    	reprap.GetPlatform().MessageF(GenericMessage, "%c", (char)data[szPos]);
+    	reprap.GetPlatform().MessageF(HttpMessage, "%c", (char)data[szPos]);
   }
-  reprap.GetPlatform().MessageF(GenericMessage, "\n");
+  reprap.GetPlatform().MessageF(HttpMessage, "\n");
 }
 
 /**************************************************************************/
@@ -171,7 +176,7 @@ uint32_t TagReaderWriter::getFirmwareVersion(void) {
   // check some basic stuff
   if (0 != strncmp((char *)pn532_packetbuffer, (char *)pn532response_firmwarevers, 6)) {
 #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, "Firmware doesn't match!\n");
+      reprap.GetPlatform().MessageF(HttpMessage, "Firmware doesn't match!\n");
 #endif
     return 0;
   }
@@ -214,14 +219,14 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t
 
   #ifdef PN532DEBUG
     if (!_usingSPI) {
-    	reprap.GetPlatform().MessageF(GenericMessage, "IRQ received\n");
+    	reprap.GetPlatform().MessageF(HttpMessage, "IRQ received\n");
     }
   #endif
 
   // read acknowledgement
   if (!readack()) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "No ACK frame received!\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "No ACK frame received!\n");
     #endif
     return false;
   }
@@ -271,8 +276,8 @@ bool TagReaderWriter::writeGPIO(uint8_t pinstate) {
   pn532_packetbuffer[2] = 0x00;    // P7 GPIO Pins (not used ... taken by SPI)
 
   #ifdef PN532DEBUG
-	 reprap.GetPlatform().MessageF(GenericMessage, "Writing P3 GPIO: ");
-	 reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[1]);
+	 reprap.GetPlatform().MessageF(HttpMessage, "Writing P3 GPIO: ");
+	 reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[1]);
   #endif
 
   // Send the WRITEGPIO command (0x0E)
@@ -283,9 +288,9 @@ bool TagReaderWriter::writeGPIO(uint8_t pinstate) {
   readdata(pn532_packetbuffer, 8);
 
   #ifdef PN532DEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Received: ");
+    reprap.GetPlatform().MessageF(HttpMessage, "Received: ");
     PrintHex(pn532_packetbuffer, 8);
-    reprap.GetPlatform().MessageF(GenericMessage, "\n");
+    reprap.GetPlatform().MessageF(HttpMessage, "\n");
   #endif
 
   int offset = _usingSPI ? 5 : 6;
@@ -329,23 +334,23 @@ uint8_t TagReaderWriter::readGPIO(void) {
   int p3offset = _usingSPI ? 6 : 7;
 
   #ifdef PN532DEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Received: ");
+    reprap.GetPlatform().MessageF(HttpMessage, "Received: ");
     PrintHex(pn532_packetbuffer, 11);
-    reprap.GetPlatform().MessageF(GenericMessage, "\n");
-    reprap.GetPlatform().MessageF(GenericMessage, "P3 GPIO: 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[p3offset]);
-    reprap.GetPlatform().MessageF(GenericMessage, "P7 GPIO: 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[p3offset+1]);
-    reprap.GetPlatform().MessageF(GenericMessage, "IO GPIO: 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[p3offset+2]);
+    reprap.GetPlatform().MessageF(HttpMessage, "\n");
+    reprap.GetPlatform().MessageF(HttpMessage, "P3 GPIO: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[p3offset]);
+    reprap.GetPlatform().MessageF(HttpMessage, "P7 GPIO: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[p3offset+1]);
+    reprap.GetPlatform().MessageF(HttpMessage, "IO GPIO: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[p3offset+2]);
     // Note: You can use the IO GPIO value to detect the serial bus being used
     switch(pn532_packetbuffer[p3offset+2])
     {
       case 0x00:    // Using UART
-    	  reprap.GetPlatform().MessageF(GenericMessage, "Using UART (IO = 0x00)");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "Using UART (IO = 0x00)");
         break;
       case 0x01:    // Using I2C
-    	  reprap.GetPlatform().MessageF(GenericMessage, "Using I2C (IO = 0x01)");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "Using I2C (IO = 0x01)");
         break;
       case 0x02:    // Using SPI
-    	  reprap.GetPlatform().MessageF(GenericMessage, "Using SPI (IO = 0x02)");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "Using SPI (IO = 0x02)");
         break;
     }
   #endif
@@ -392,7 +397,7 @@ bool TagReaderWriter::setPassiveActivationRetries(uint8_t maxRetries) {
   pn532_packetbuffer[4] = maxRetries;
 
   #ifdef MIFAREDEBUG
-  reprap.GetPlatform().MessageF(GenericMessage, "Setting MxRtyPassiveActivation to "); reprap.GetPlatform().MessageF(GenericMessage, "%u", maxRetries); reprap.GetPlatform().MessageF(GenericMessage, " \n");
+  reprap.GetPlatform().MessageF(HttpMessage, "Setting MxRtyPassiveActivation to "); reprap.GetPlatform().MessageF(HttpMessage, "%u", maxRetries); reprap.GetPlatform().MessageF(HttpMessage, " \n");
   #endif
 
   if (! sendCommandCheckAck(pn532_packetbuffer, 5))
@@ -424,7 +429,7 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, u
   if (!sendCommandCheckAck(pn532_packetbuffer, 3, timeout))
   {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "No card(s) read");
+	  reprap.GetPlatform().MessageF(HttpMessage, "No card(s) read");
     #endif
     return 0x0;  // no cards read
   }
@@ -432,11 +437,11 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, u
   // wait for a card to enter the field (only possible with I2C)
   if (!_usingSPI) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Waiting for IRQ (indicates card presence)");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Waiting for IRQ (indicates card presence)");
     #endif
     if (!waitready(timeout)) {
       #ifdef PN532DEBUG
-    	reprap.GetPlatform().MessageF(GenericMessage, "IRQ Timeout");
+    	reprap.GetPlatform().MessageF(HttpMessage, "IRQ Timeout");
       #endif
       return 0x0;
     }
@@ -459,7 +464,7 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, u
     b13..NFCIDLen   NFCID                                      */
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Found "); reprap.GetPlatform().MessageF(GenericMessage, "%u", pn532_packetbuffer[7]); reprap.GetPlatform().MessageF(GenericMessage, " tags\n");
+    reprap.GetPlatform().MessageF(HttpMessage, "Found "); reprap.GetPlatform().MessageF(HttpMessage, "%u", pn532_packetbuffer[7]); reprap.GetPlatform().MessageF(HttpMessage, " tags\n");
   #endif
   if (pn532_packetbuffer[7] != 1)
     return 0;
@@ -468,24 +473,24 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, u
   sens_res <<= 8;
   sens_res |= pn532_packetbuffer[10];
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "ATQA: 0x");  reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",sens_res);
-    reprap.GetPlatform().MessageF(GenericMessage, "SAK: 0x");  reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[11]);
+    reprap.GetPlatform().MessageF(HttpMessage, "ATQA: 0x");  reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",sens_res);
+    reprap.GetPlatform().MessageF(HttpMessage, "SAK: 0x");  reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[11]);
   #endif
 
   /* Card appears to be Mifare Classic */
   *uidLength = pn532_packetbuffer[12];
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "UID:");
+    reprap.GetPlatform().MessageF(HttpMessage, "UID:");
   #endif
   for (uint8_t i=0; i < pn532_packetbuffer[12]; i++)
   {
     uid[i] = pn532_packetbuffer[13+i];
     #ifdef MIFAREDEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",uid[i]);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",uid[i]);
     #endif
   }
   #ifdef MIFAREDEBUG
-  reprap.GetPlatform().MessageF(GenericMessage, "\n");
+  reprap.GetPlatform().MessageF(HttpMessage, "\n");
   #endif
 
   return 1;
@@ -504,7 +509,7 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, u
 bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response, uint8_t * responseLength) {
   if (sendLength > PN532_PACKBUFFSIZ-2) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "APDU length too long for packet buffer\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "APDU length too long for packet buffer\n");
     #endif
     return false;
   }
@@ -518,14 +523,14 @@ bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t
 
   if (!sendCommandCheckAck(pn532_packetbuffer,sendLength+2,1000)) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Could not send APDU\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Could not send APDU\n");
     #endif
     return false;
   }
 
   if (!waitready(1000)) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Response never received for APDU...\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Response never received for APDU...\n");
     #endif
     return false;
   }
@@ -536,16 +541,16 @@ bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t
     uint8_t length = pn532_packetbuffer[3];
     if (pn532_packetbuffer[4]!=(uint8_t)(~length+1)) {
       #ifdef PN532DEBUG
-    	reprap.GetPlatform().MessageF(GenericMessage, "Length check invalid\n");
-        reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",length);
-        reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",(~length)+1);
+    	reprap.GetPlatform().MessageF(HttpMessage, "Length check invalid\n");
+        reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",length);
+        reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",(~length)+1);
       #endif
       return false;
     }
     if (pn532_packetbuffer[5]==PN532_PN532TOHOST && pn532_packetbuffer[6]==PN532_RESPONSE_INDATAEXCHANGE) {
       if ((pn532_packetbuffer[7] & 0x3f)!=0) {
         #ifdef PN532DEBUG
-    	  reprap.GetPlatform().MessageF(GenericMessage, "Status code indicates an error\n");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "Status code indicates an error\n");
         #endif
         return false;
       }
@@ -564,13 +569,13 @@ bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t
       return true;
     }
     else {
-      reprap.GetPlatform().MessageF(GenericMessage, "Don't know how to handle this command: ");
-      reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",pn532_packetbuffer[6]);
+      reprap.GetPlatform().MessageF(HttpMessage, "Don't know how to handle this command: ");
+      reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[6]);
       return false;
     }
   }
   else {
-	  reprap.GetPlatform().MessageF(GenericMessage, "Preamble missing");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Preamble missing");
     return false;
   }
 }
@@ -587,12 +592,12 @@ bool TagReaderWriter::inListPassiveTarget() {
   pn532_packetbuffer[2] = 0;
 
   #ifdef PN532DEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "About to inList passive target");
+    reprap.GetPlatform().MessageF(HttpMessage, "About to inList passive target");
   #endif
 
   if (!sendCommandCheckAck(pn532_packetbuffer,3,1000)) {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Could not send inlist message\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Could not send inlist message\n");
     #endif
     return false;
   }
@@ -607,38 +612,38 @@ bool TagReaderWriter::inListPassiveTarget() {
     uint8_t length = pn532_packetbuffer[3];
     if (pn532_packetbuffer[4]!=(uint8_t)(~length+1)) {
       #ifdef PN532DEBUG
-    	reprap.GetPlatform().MessageF(GenericMessage, "Length check invalid\n");
-		reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",length);
-		reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",(~length)+1);
+    	reprap.GetPlatform().MessageF(HttpMessage, "Length check invalid\n");
+		reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",length);
+		reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",(~length)+1);
       #endif
       return false;
     }
     if (pn532_packetbuffer[5]==PN532_PN532TOHOST && pn532_packetbuffer[6]==PN532_RESPONSE_INLISTPASSIVETARGET) {
       if (pn532_packetbuffer[7] != 1) {
         #ifdef PN532DEBUG
-		  reprap.GetPlatform().MessageF(GenericMessage, "Unhandled number of targets inlisted\n");
+		  reprap.GetPlatform().MessageF(HttpMessage, "Unhandled number of targets inlisted\n");
         #endif
-    	  reprap.GetPlatform().MessageF(GenericMessage, "Number of tags inlisted:\n");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "Number of tags inlisted:\n");
 
         //PN532DEBUGPRINT.println(pn532_packetbuffer[7]);
         return false;
       }
 
       _inListedTag = pn532_packetbuffer[8];
-      reprap.GetPlatform().MessageF(GenericMessage, "Tag number: ");
+      reprap.GetPlatform().MessageF(HttpMessage, "Tag number: ");
       //PN532DEBUGPRINT.println(_inListedTag);
 
       return true;
     } else {
       #ifdef PN532DEBUG
-        reprap.GetPlatform().MessageF(GenericMessage, "Unexpected response to inlist passive host");
+        reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response to inlist passive host");
       #endif
       return false;
     }
   }
   else {
     #ifdef PN532DEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Preamble missing\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Preamble missing\n");
     #endif
     return false;
   }
@@ -707,9 +712,9 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t
   _uidLen = uidLen;
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Trying to authenticate card ");
+    reprap.GetPlatform().MessageF(HttpMessage, "Trying to authenticate card ");
     TagReaderWriter::PrintHex(_uid, _uidLen);
-    reprap.GetPlatform().MessageF(GenericMessage, "Using authentication KEY ");reprap.GetPlatform().MessageF(GenericMessage,"%c", (keyNumber ? 'B' : 'A'));reprap.GetPlatform().MessageF(GenericMessage, ": ");
+    reprap.GetPlatform().MessageF(HttpMessage, "Using authentication KEY ");reprap.GetPlatform().MessageF(HttpMessage,"%c", (keyNumber ? 'B' : 'A'));reprap.GetPlatform().MessageF(HttpMessage, ": ");
     TagReaderWriter::PrintHex(_key, 6);
   #endif
 
@@ -736,7 +741,7 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t
   if (pn532_packetbuffer[7] != 0x00)
   {
     #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, "Authentification failed: ");
+      reprap.GetPlatform().MessageF(HttpMessage, "Authentification failed: ");
       TagReaderWriter::PrintHexChar(pn532_packetbuffer, 12);
     #endif
     return 0;
@@ -761,7 +766,7 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t
 uint8_t TagReaderWriter::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_t * data)
 {
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Trying to read 16 uint8_ts from block ");reprap.GetPlatform().MessageF(GenericMessage, "%u",blockNumber);
+    reprap.GetPlatform().MessageF(HttpMessage, "Trying to read 16 uint8_ts from block ");reprap.GetPlatform().MessageF(HttpMessage, "%u",blockNumber);
   #endif
 
   /* Prepare the command */
@@ -774,7 +779,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8
   if (! sendCommandCheckAck(pn532_packetbuffer, 4))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for read command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for read command\n");
     #endif
     return 0;
   }
@@ -786,7 +791,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8
   if (pn532_packetbuffer[7] != 0x00)
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Unexpected response\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response\n");
       TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
     #endif
     return 0;
@@ -798,8 +803,8 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8
 
   /* Display data for debug if requested */
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Block ");
-    reprap.GetPlatform().MessageF(GenericMessage, "%u\n",blockNumber);
+    reprap.GetPlatform().MessageF(HttpMessage, "Block ");
+    reprap.GetPlatform().MessageF(HttpMessage, "%u\n",blockNumber);
     TagReaderWriter::PrintHexChar(data, 16);
   #endif
 
@@ -821,7 +826,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8
 uint8_t TagReaderWriter::mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t * data)
 {
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Trying to write 16 uint8_ts to block ");reprap.GetPlatform().MessageF(GenericMessage, "%u\n",blockNumber);
+    reprap.GetPlatform().MessageF(HttpMessage, "Trying to write 16 uint8_ts to block ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",blockNumber);
   #endif
 
   /* Prepare the first command */
@@ -835,7 +840,7 @@ uint8_t TagReaderWriter::mifareclassic_WriteDataBlock (uint8_t blockNumber, uint
   if (! sendCommandCheckAck(pn532_packetbuffer, 20))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for write command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for write command\n");
     #endif
     return 0;
   }
@@ -980,13 +985,13 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage (uint8_t page, uint8_t * buff
   if (page >= 64)
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Page value out of range\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Page value out of range\n");
     #endif
     return 0;
   }
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Reading page ");reprap.GetPlatform().MessageF(GenericMessage, "%u\n",page);
+    reprap.GetPlatform().MessageF(HttpMessage, "Reading page ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",page);
   #endif
 
   /* Prepare the command */
@@ -999,7 +1004,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage (uint8_t page, uint8_t * buff
   if (! sendCommandCheckAck(pn532_packetbuffer, 4))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for write command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for write command\n");
     #endif
     return 0;
   }
@@ -1007,7 +1012,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage (uint8_t page, uint8_t * buff
   /* Read the response packet */
   readdata(pn532_packetbuffer, 26);
   #ifdef MIFAREDEBUG
-  	reprap.GetPlatform().MessageF(GenericMessage, "Received: \n");
+  	reprap.GetPlatform().MessageF(HttpMessage, "Received: \n");
     TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
   #endif
 
@@ -1024,7 +1029,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage (uint8_t page, uint8_t * buff
   else
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Unexpected response reading block: \n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response reading block: \n");
       TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
     #endif
     return 0;
@@ -1032,7 +1037,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage (uint8_t page, uint8_t * buff
 
   /* Display data for debug if requested */
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Page ");reprap.GetPlatform().MessageF(GenericMessage, "%u",page);reprap.GetPlatform().MessageF(GenericMessage, ":\n");
+    reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",page);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
     TagReaderWriter::PrintHexChar(buffer, 4);
   #endif
 
@@ -1058,14 +1063,14 @@ uint8_t TagReaderWriter::mifareultralight_WritePage (uint8_t page, uint8_t * dat
   if (page >= 64)
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Page value out of range\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Page value out of range\n");
     #endif
     // Return Failed Signal
     return 0;
   }
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Trying to write 4 uint8_t page");reprap.GetPlatform().MessageF(GenericMessage, "%u\n",page);
+    reprap.GetPlatform().MessageF(HttpMessage, "Trying to write 4 uint8_t page");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",page);
   #endif
 
   /* Prepare the first command */
@@ -1079,7 +1084,7 @@ uint8_t TagReaderWriter::mifareultralight_WritePage (uint8_t page, uint8_t * dat
   if (! sendCommandCheckAck(pn532_packetbuffer, 8))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for write command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for write command\n");
     #endif
 
     // Return Failed Signal
@@ -1118,13 +1123,13 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage (uint8_t page, uint8_t * buffer)
   if (page >= 231)
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Page value out of range\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Page value out of range\n");
     #endif
     return 0;
   }
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Reading page ");reprap.GetPlatform().MessageF(GenericMessage, "%u\n",page);
+    reprap.GetPlatform().MessageF(HttpMessage, "Reading page ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",page);
   #endif
 
   /* Prepare the command */
@@ -1137,7 +1142,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage (uint8_t page, uint8_t * buffer)
   if (! sendCommandCheckAck(pn532_packetbuffer, 4))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for write command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for write command\n");
     #endif
     return 0;
   }
@@ -1145,7 +1150,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage (uint8_t page, uint8_t * buffer)
   /* Read the response packet */
   readdata(pn532_packetbuffer, 26);
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Received: \n");
+    reprap.GetPlatform().MessageF(HttpMessage, "Received: \n");
     TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
   #endif
 
@@ -1162,7 +1167,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage (uint8_t page, uint8_t * buffer)
   else
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Unexpected response reading block: \n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response reading block: \n");
       TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
     #endif
     return 0;
@@ -1170,7 +1175,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage (uint8_t page, uint8_t * buffer)
 
   /* Display data for debug if requested */
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Page ");reprap.GetPlatform().MessageF(GenericMessage, "%u",page);reprap.GetPlatform().MessageF(GenericMessage, ":\n");
+    reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",page);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
     TagReaderWriter::PrintHexChar(buffer, 4);
   #endif
 
@@ -1202,14 +1207,14 @@ uint8_t TagReaderWriter::ntag2xx_WritePage (uint8_t page, uint8_t * data)
   if ((page < 4) || (page > 225))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Page value out of range\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Page value out of range\n");
     #endif
     // Return Failed Signal
     return 0;
   }
 
   #ifdef MIFAREDEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Trying to write 4 uint8_t page");reprap.GetPlatform().MessageF(GenericMessage, "%u\n",page);
+    reprap.GetPlatform().MessageF(HttpMessage, "Trying to write 4 uint8_t page");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",page);
   #endif
 
   /* Prepare the first command */
@@ -1223,7 +1228,7 @@ uint8_t TagReaderWriter::ntag2xx_WritePage (uint8_t page, uint8_t * data)
   if (! sendCommandCheckAck(pn532_packetbuffer, 8))
   {
     #ifdef MIFAREDEBUG
-	  reprap.GetPlatform().MessageF(GenericMessage, "Failed to receive ACK for write command\n");
+	  reprap.GetPlatform().MessageF(HttpMessage, "Failed to receive ACK for write command\n");
     #endif
 
     // Return Failed Signal
@@ -1378,7 +1383,7 @@ bool TagReaderWriter::isready() {
 	MutexLocker lock(Tasks::GetSpiMutex(), 10);
 	if (!lock)
 	{
-		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
+		reprap.GetPlatform().MessageF(HttpMessage, " !lock\n");
 		return 0;
 	}
 	sspi_master_setup_device(&device);
@@ -1421,7 +1426,7 @@ bool TagReaderWriter::waitready(uint16_t timeout) {
     if (timeout != 0) {
       timer += 10;
       if (timer > timeout) {
-    	  reprap.GetPlatform().MessageF(GenericMessage, "TIMEOUT!\n");
+    	  reprap.GetPlatform().MessageF(HttpMessage, "TIMEOUT!\n");
         return false;
       }
     }
@@ -1449,7 +1454,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
      MutexLocker lock(Tasks::GetSpiMutex(), 10);
 	if (!lock)
 	{
-		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
+		reprap.GetPlatform().MessageF(HttpMessage, " !lock\n");
 		return;
 	}
 
@@ -1471,7 +1476,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
 
 
     #ifdef PN532DEBUG
-    reprap.GetPlatform().MessageF(GenericMessage, "Reading: ");
+    reprap.GetPlatform().MessageF(HttpMessage, "Reading: ");
     #endif
 
     for (uint8_t i=0; i<n; i++) {
@@ -1479,13 +1484,13 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
       sspi_read_packet(rawBytes,1);
       buff[i] = data_lsbfirst_r(rawBytes[0]);
       #ifdef PN532DEBUG
-        reprap.GetPlatform().MessageF(GenericMessage, " 0x");
-        reprap.GetPlatform().MessageF(GenericMessage, "%02x",buff[i]);
+        reprap.GetPlatform().MessageF(HttpMessage, " 0x");
+        reprap.GetPlatform().MessageF(HttpMessage, "%02x",buff[i]);
       #endif
     }
 
     #ifdef PN532DEBUG
-    	reprap.GetPlatform().MessageF(GenericMessage, "\n");
+    	reprap.GetPlatform().MessageF(HttpMessage, "\n");
     #endif
 
 	delayMicroseconds(1);
@@ -1514,7 +1519,7 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     cmdlen++;
 
     #ifdef PN532DEBUG
-      //reprap.GetPlatform().MessageF(GenericMessage, "\nSending: ");
+      //reprap.GetPlatform().MessageF(HttpMessage, "\nSending: ");
     #endif
 
     #ifdef SPI_HAS_TRANSACTION
@@ -1524,7 +1529,7 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
      MutexLocker lock(Tasks::GetSpiMutex(), 10);
 	if (!lock)
 	{
-		reprap.GetPlatform().MessageF(GenericMessage, " !lock\n");
+		reprap.GetPlatform().MessageF(HttpMessage, " !lock\n");
 		return;
 	}
 
@@ -1569,12 +1574,12 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     checksum += PN532_HOSTTOPN532;
 
     #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_PREAMBLE);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_PREAMBLE);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_STARTCODE2);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)cmdlen);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)(~cmdlen + 1));
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)PN532_HOSTTOPN532);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)PN532_PREAMBLE);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)PN532_PREAMBLE);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)PN532_STARTCODE2);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)cmdlen);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)(~cmdlen + 1));
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)PN532_HOSTTOPN532);
     #endif
 
     for (uint8_t i=0; i<cmdlen-1; i++) {
@@ -1584,7 +1589,7 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     	delayMicroseconds(1);
     	checksum += cmd[i];
       #ifdef PN532DEBUG
-        reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)cmd[i]);
+        reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)cmd[i]);
       #endif
     }
 
@@ -1604,8 +1609,8 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
     #endif
 
     #ifdef PN532DEBUG
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)~checksum);
-      reprap.GetPlatform().MessageF(GenericMessage, " 0x"); reprap.GetPlatform().MessageF(GenericMessage, "%02x\n",(uint8_t)PN532_POSTAMBLE);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)~checksum);
+      reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",(uint8_t)PN532_POSTAMBLE);
 
     #endif
   }
@@ -1625,7 +1630,7 @@ uint8_t TagReaderWriter::data_lsbfirst_w(uint8_t b){ // WRITE
 		}
 
 	}
-	//reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)w);
+	//reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)w);
 	return w;
 }
 // bit shifting
@@ -1642,6 +1647,128 @@ uint8_t TagReaderWriter::data_lsbfirst_r(uint8_t b){ //READ
 		}
 
 	}
-	//reprap.GetPlatform().MessageF(GenericMessage, " 0x"); 	reprap.GetPlatform().MessageF(GenericMessage, "%02x",(uint8_t)r);
+	//reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)r);
 	return r;
+}
+void TagReaderWriter::Spin() {
+	MutexLocker lock(TagReaderWriterMutex);
+
+	if (isInit) {
+
+		const uint32_t now = millis();
+		static uint32_t lastTime = millis();
+		if (now - lastTime >= 1000) {
+			lastTime = millis();
+
+			uint8_t success; // Flag to check if there was an error with the PN532
+			uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 }; // Buffer to store the returned UID
+			uint8_t uidLength; // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+			uint8_t currentblock; // Counter to keep track of which block we're on
+			bool authenticated = false; // Flag to indicate if the sector is authenticated
+			uint8_t data[16];          // Array to store block data during reads
+
+			// Keyb on NDEF and Mifare Classic should be the same
+			uint8_t keyuniversal[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+			// Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
+			// 'uid' will be populated with the UID, and uidLength will indicate
+			// if the uid is 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
+			success = readPassiveTargetID(PN532_MIFARE_ISO14443A, uid,
+					&uidLength);
+
+			if (success) {
+				// Display some basic information about the card
+				reprap.GetPlatform().MessageF(HttpMessage,
+						"Found an ISO14443A card\n");
+				reprap.GetPlatform().MessageF(HttpMessage,
+						"  UID Length: %d", uidLength);
+				reprap.GetPlatform().MessageF(HttpMessage, " bytes\n");
+				reprap.GetPlatform().MessageF(HttpMessage, "  UID Value: ");
+				PrintHex(uid, uidLength);
+				reprap.GetPlatform().MessageF(HttpMessage, "\n");
+
+				if (uidLength == 4) {
+					// We probably have a Mifare Classic card ...
+					reprap.GetPlatform().MessageF(HttpMessage,
+							"Seems to be a Mifare Classic card (4 byte UID)\n");
+
+					// Now we try to go through all 16 sectors (each having 4 blocks)
+					// authenticating each sector, and then dumping the blocks
+					for (currentblock = 0; currentblock < 64; currentblock++) {
+						// Check if this is a new block so that we can reauthenticate
+						if (mifareclassic_IsFirstBlock(currentblock))
+							authenticated = false;
+
+						// If the sector hasn't been authenticated, do so first
+						if (!authenticated) {
+							// Starting of a new sector ... try to to authenticate
+							reprap.GetPlatform().MessageF(HttpMessage,
+									"------------------------Sector %d",
+									currentblock / 4);
+							reprap.GetPlatform().MessageF(HttpMessage,
+									"-------------------------\n");
+							if (currentblock == 0) {
+								// This will be 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF for Mifare Classic (non-NDEF!)
+								// or 0xA0 0xA1 0xA2 0xA3 0xA4 0xA5 for NDEF formatted cards using key a,
+								// but keyb should be the same for both (0xFF 0xFF 0xFF 0xFF 0xFF 0xFF)
+								success = mifareclassic_AuthenticateBlock(uid,
+										uidLength, currentblock, 1,
+										keyuniversal);
+							} else {
+								// This will be 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF for Mifare Classic (non-NDEF!)
+								// or 0xD3 0xF7 0xD3 0xF7 0xD3 0xF7 for NDEF formatted cards using key a,
+								// but keyb should be the same for both (0xFF 0xFF 0xFF 0xFF 0xFF 0xFF)
+								success = mifareclassic_AuthenticateBlock(uid,
+										uidLength, currentblock, 1,
+										keyuniversal);
+							}
+							if (success) {
+								authenticated = true;
+							} else {
+								reprap.GetPlatform().MessageF(HttpMessage,
+										"Authentication error\n");
+							}
+						}
+						// If we're still not authenticated just skip the block
+						if (!authenticated) {
+							reprap.GetPlatform().MessageF(HttpMessage,
+									"Block %d", currentblock);
+							reprap.GetPlatform().MessageF(HttpMessage,
+									" unable to authenticate\n");
+						} else {
+							// Authenticated ... we should be able to read the block now
+							// Dump the data into the 'data' array
+							success = mifareclassic_ReadDataBlock(currentblock,
+									data);
+							if (success) {
+								// Read successful
+								reprap.GetPlatform().MessageF(HttpMessage,
+										"Block %d", currentblock);
+								if (currentblock < 10) {
+									reprap.GetPlatform().MessageF(
+											HttpMessage, "  ");
+								} else {
+									reprap.GetPlatform().MessageF(
+											HttpMessage, " ");
+								}
+								// Dump the raw data
+								PrintHexChar(data, 16);
+							} else {
+								// Oops ... something happened
+								reprap.GetPlatform().MessageF(HttpMessage,
+										"Block %d", currentblock);
+								reprap.GetPlatform().MessageF(HttpMessage,
+										" unable to read this block\n");
+							}
+						}
+					}
+				} else {
+					reprap.GetPlatform().MessageF(HttpMessage,
+							"Ooops ... this doesn't seem to be a Mifare Classic card!\n");
+				}
+			}
+
+		}
+	}
+
 }

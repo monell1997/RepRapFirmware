@@ -63,8 +63,9 @@ enum Module : uint8_t
 	moduleDisplay = 15,
 	moduleSpoolSupplier = 16,
 	moduleHdcSensorhi = 17,
-	numModules = 18,				// make this one greater than the last module number
-	noModule = 18
+	modulerTagReader = 18,
+	numModules = 19,				// make this one greater than the last module number
+	noModule = 19
 };
 
 extern const char * const moduleName[];

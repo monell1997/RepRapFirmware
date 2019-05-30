@@ -427,6 +427,10 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleHdcSensorhi;
 	hdcsensorhi->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = modulerTagReader;
+	tagreaderwriter->Spin();
 #endif
 
 

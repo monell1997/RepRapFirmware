@@ -1712,6 +1712,13 @@ GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply)
 	  reprap.GetPlatform().MessageF(GenericMessage, "%x \n", (uint8_t)((versiondata>>16) & 0xFF));
 	  reprap.GetPlatform().MessageF(GenericMessage,"Firmware ver. "); reprap.GetPlatform().MessageF(GenericMessage, "%x", (uint8_t)((versiondata>>8) & 0xFF));
 	  reprap.GetPlatform().MessageF(GenericMessage,"."); reprap.GetPlatform().MessageF(GenericMessage, "%x \n", (uint8_t)(versiondata& 0xFF));
+
+	  // configure board to read RFID tags
+	  reprap.GetTagReaderWriter().SAMConfig();
+
+	Serial.println("Waiting for an ISO14443A Card ...");
+
+
 	return GCodeResult::ok;
 }
 #endif

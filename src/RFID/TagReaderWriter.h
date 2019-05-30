@@ -136,6 +136,7 @@
 class TagReaderWriter{
  public:
 	TagReaderWriter(uint8_t ss);  // Hardware SPI
+	void Spin();
   void begin(void);
 
   // Generic PN532 functions
@@ -174,6 +175,7 @@ class TagReaderWriter{
   static void PrintHexChar(const uint8_t * pbtData, const uint32_t numBytes);
   bool isInit = false;
  private:
+  static Mutex TagReaderWriterMutex;
   sspi_device device;
   uint8_t _uid[7];       // ISO14443A uid
   uint8_t _uidLen;       // uid len
