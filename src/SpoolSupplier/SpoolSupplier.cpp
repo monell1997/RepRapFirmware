@@ -6,7 +6,7 @@
  */
 #include "RepRap.h"
 #include "Heating/Heat.h"
-#include <SpoolSupplier/SpoolSupplier.h>
+#include "SpoolSupplier/SpoolSupplier.h"
 #include "OutputMemory.h"
 constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 5000;		// interval spoolsupplier data refresh
 #ifdef BCN3D_DEV

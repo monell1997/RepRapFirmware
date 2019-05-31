@@ -5,8 +5,8 @@
  *      Author: agarciamoreno
  */
 
-#ifndef SRC_RFID_TAGREADERWRITER_H_
-#define SRC_RFID_TAGREADERWRITER_H_
+#ifndef SRC_RFID_PN532HANDLER_H_
+#define SRC_RFID_PN532HANDLER_H_
 
 #include "RepRap.h"
 #include "Platform.h"
@@ -14,6 +14,7 @@
 #include "Tasks.h"
 #include "Wire.h"
 #include "SharedSpi.h"
+#include "RFID/RFIDdevicestatus.h"
 
 #define PN532_PREAMBLE                      (0x00)
 #define PN532_STARTCODE1                    (0x00)
@@ -132,21 +133,27 @@
 #define PN532_GPIO_P34                      (4)
 #define PN532_GPIO_P35                      (5)
 
-class TagReaderWriter {
-	enum class RW_State : uint8_t
-		{
+
+enum class RW_State
+	: uint8_t
+	{
 		none,
-		writecommand,
-		waitready,
-		waitready2,
-		readack,
-		readdata,
-		lastRW_State = readdata
-	};
+	writecommand,
+	waitready,
+	waitready2,
+	readack,
+	readdata,
+	lastRW_State = readdata
+};
+
+class PN532Handler {
+
 public:
-	TagReaderWriter(uint8_t ss);  // Hardware SPI
+	PN532Handler(uint8_t ss);  // SPI
 	void Spin();
 	void begin(void);
+
+	RFID_device_status Get_PN532_Status();
 
 	// Generic PN532 functions
 	bool SAMConfig(void);
@@ -188,20 +195,16 @@ public:
 	// Help functions to display formatted text
 	static void PrintHex(const uint8_t * data, const uint32_t numBytes);
 	static void PrintHexChar(const uint8_t * pbtData, const uint32_t numBytes);
-	bool isInit = false;
 private:
-	static Mutex TagReaderWriterMutex;
+	static Mutex PN532HandlerMutex;
 	sspi_device device;
 	uint8_t _uid[7];       // ISO14443A uid
 	uint8_t _uidLen;       // uid len
 	uint8_t _key[6];       // Mifare Classic key
 	uint8_t _inListedTag;  // Tg number of inlisted tag.
-	bool _usingSPI;     // True if using SPI, false if using I2C.
-	bool _hardwareSPI; // True is using hardware SPI, false if using software SPI.
 
 	// Low level communication functions that handle both SPI and I2C.
-	uint8_t data_lsbfirst_w(uint8_t b);
-	uint8_t data_lsbfirst_r(uint8_t b);
+	uint8_t data_lsbfirst(uint8_t b);
 	void readdata(uint8_t* buff, uint8_t n);
 	void writecommand(uint8_t* cmd, uint8_t cmdlen);
 	bool isready();
@@ -209,7 +212,8 @@ private:
 	bool waitready2(uint16_t timeout);
 	bool readack();
 
-	RW_State current_RW_State;
+	RW_State _RW_State;
+	RFID_device_status _PN532_status;
 	void ProcessStates();
 
 	uint32_t lastTime;
@@ -217,4 +221,4 @@ private:
 	uint32_t timeoutCount;
 
 };
-#endif /* SRC_RFID_TAGREADERWRITER_H_ */
+#endif /* SRC_RFID_PN532HANDLER_H_ */

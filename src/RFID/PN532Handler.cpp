@@ -4,16 +4,16 @@
  *  Created on: 29 abr. 2019
  *      Author: agarciamoreno
  */
+#include <RFID/PN532Handler.h>
 #include "RepRap.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
 #include "Tasks.h"
 #include "Wire.h"
-#include <RFID/TagReaderWriter.h>
 #include "SharedSpi.h"
 
 // Static data
-Mutex TagReaderWriter::TagReaderWriterMutex;
+Mutex PN532Handler::PN532HandlerMutex;
 
 uint8_t pn532ack[] = { 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00 };
 uint8_t pn532response_firmwarevers[] = { 0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03 };
@@ -44,17 +44,20 @@ const uint8_t PN532_SpiMode = SPI_MODE_0;
  @param  ss        SPI chip select pin (CS/SSEL)
  */
 /**************************************************************************/
-TagReaderWriter::TagReaderWriter(uint8_t ss) :
-		_usingSPI(true), _hardwareSPI(true) {
+PN532Handler::PN532Handler(uint8_t ss)
+	{
 	device.csPin = SpiTempSensorCsPins[ss];	// CS1 up to CS4
 	device.csPolarity = false;						// active low chip select
 	device.spiMode = PN532_SpiMode;
 	device.clockFrequency = PN532_Frequency;
-	isInit = false;
-	lastTime = 0;
-	current_RW_State = RW_State::none;
+
+	_PN532_status = RFID_device_status::disconnected;
+	_RW_State = RW_State::none;
+
 	timeoutWR = 0;
-	TagReaderWriterMutex.Create("TagReaderWriter");
+	lastTime = 0;
+
+	PN532HandlerMutex.Create("TagReaderWriter");
 }
 
 /**************************************************************************/
@@ -62,7 +65,7 @@ TagReaderWriter::TagReaderWriter(uint8_t ss) :
  @brief  Setups the HW
  */
 /**************************************************************************/
-void TagReaderWriter::begin() {
+void PN532Handler::begin() {
 
 	sspi_master_init(&device, 8);
 
@@ -75,16 +78,19 @@ void TagReaderWriter::begin() {
 
 	// not exactly sure why but we have to send a dummy command to get synced up
 	pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
-	sendCommandCheckAck(pn532_packetbuffer, 1);
+	if(sendCommandCheckAck(pn532_packetbuffer, 1)){
+		_PN532_status = RFID_device_status::online;
+	}else{
+		_PN532_status = RFID_device_status::failedconnection;
+	}
 
 	// ignore response!
 
 	delayMicroseconds(1);
 	sspi_deselect_device(&device);
 	delayMicroseconds(1);
-	isInit = true;
 
-	current_RW_State = RW_State::none;
+	_RW_State = RW_State::none;
 	lastTime = millis();
 }
 
@@ -96,7 +102,7 @@ void TagReaderWriter::begin() {
  @param  numuint8_ts  Data length in uint8_ts
  */
 /**************************************************************************/
-void TagReaderWriter::PrintHex(const uint8_t * data,
+void PN532Handler::PrintHex(const uint8_t * data,
 		const uint32_t numBytes) {
 	uint32_t szPos;
 	for (szPos = 0; szPos < numBytes; szPos++) {
@@ -124,7 +130,7 @@ void TagReaderWriter::PrintHex(const uint8_t * data,
  @param  numuint8_ts  Data length in uint8_ts
  */
 /**************************************************************************/
-void TagReaderWriter::PrintHexChar(const uint8_t * data,
+void PN532Handler::PrintHexChar(const uint8_t * data,
 		const uint32_t numuint8_ts) {
 	uint32_t szPos;
 	for (szPos = 0; szPos < numuint8_ts; szPos++) {
@@ -155,7 +161,7 @@ void TagReaderWriter::PrintHexChar(const uint8_t * data,
  @returns  The chip's firmware version and ID
  */
 /**************************************************************************/
-uint32_t TagReaderWriter::getFirmwareVersion(void) {
+uint32_t PN532Handler::getFirmwareVersion(void) {
 	uint32_t response;
 
 	pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
@@ -177,7 +183,7 @@ uint32_t TagReaderWriter::getFirmwareVersion(void) {
 		return 0;
 	}
 
-	int offset = _usingSPI ? 6 : 7; // Skip a response uint8_t when using I2C to ignore extra data.
+	int offset = 6;
 	response = pn532_packetbuffer[offset++];
 	response <<= 8;
 	response |= pn532_packetbuffer[offset++];
@@ -202,7 +208,7 @@ uint32_t TagReaderWriter::getFirmwareVersion(void) {
  */
 /**************************************************************************/
 // default timeout of one second
-bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen,
+bool PN532Handler::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen,
 		uint16_t timeout) {
 
 	// write the command
@@ -213,11 +219,6 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen,
 		return false;
 	}
 
-#ifdef PN532DEBUG
-	if (!_usingSPI) {
-		reprap.GetPlatform().MessageF(HttpMessage, "IRQ received\n");
-	}
-#endif
 
 	// read acknowledgement
 	if (!readack()) {
@@ -257,7 +258,7 @@ bool TagReaderWriter::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen,
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-bool TagReaderWriter::writeGPIO(uint8_t pinstate) {
+bool PN532Handler::writeGPIO(uint8_t pinstate) {
 
 	// Make sure pinstate does not try to toggle P32 or P34
 	pinstate |= (1 << PN532_GPIO_P32) | (1 << PN532_GPIO_P34);
@@ -285,7 +286,7 @@ bool TagReaderWriter::writeGPIO(uint8_t pinstate) {
 	reprap.GetPlatform().MessageF(HttpMessage, "\n");
 #endif
 
-	int offset = _usingSPI ? 5 : 6;
+	int offset = 5;
 	return (pn532_packetbuffer[offset] == 0x0F);
 }
 
@@ -303,7 +304,7 @@ bool TagReaderWriter::writeGPIO(uint8_t pinstate) {
  pinState[5]  = P35
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::readGPIO(void) {
+uint8_t PN532Handler::readGPIO(void) {
 	pn532_packetbuffer[0] = PN532_COMMAND_READGPIO;
 
 	// Send the READGPIO command (0x0C)
@@ -323,7 +324,7 @@ uint8_t TagReaderWriter::readGPIO(void) {
 	 b8              Interface Mode Pins (not used ... bus select pins)
 	 b9..10          checksum */
 
-	int p3offset = _usingSPI ? 6 : 7;
+	int p3offset = 6;
 
 #ifdef PN532DEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Received: ");
@@ -355,7 +356,7 @@ uint8_t TagReaderWriter::readGPIO(void) {
  @brief  Configures the SAM (Secure Access Module)
  */
 /**************************************************************************/
-bool TagReaderWriter::SAMConfig(void) {
+bool PN532Handler::SAMConfig(void) {
 	pn532_packetbuffer[0] = PN532_COMMAND_SAMCONFIGURATION;
 	pn532_packetbuffer[1] = 0x01; // normal mode;
 	pn532_packetbuffer[2] = 0x14; // timeout 50ms * 20 = 1 second
@@ -367,7 +368,7 @@ bool TagReaderWriter::SAMConfig(void) {
 	// read data packet
 	readdata(pn532_packetbuffer, 8);
 
-	int offset = _usingSPI ? 5 : 6;
+	int offset = 5;
 	return (pn532_packetbuffer[offset] == 0x15);
 }
 
@@ -381,7 +382,7 @@ bool TagReaderWriter::SAMConfig(void) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-bool TagReaderWriter::setPassiveActivationRetries(uint8_t maxRetries) {
+bool PN532Handler::setPassiveActivationRetries(uint8_t maxRetries) {
 	pn532_packetbuffer[0] = PN532_COMMAND_RFCONFIGURATION;
 	pn532_packetbuffer[1] = 5;    // Config item 5 (MaxRetries)
 	pn532_packetbuffer[2] = 0xFF; // MxRtyATR (default = 0xFF)
@@ -413,7 +414,7 @@ bool TagReaderWriter::setPassiveActivationRetries(uint8_t maxRetries) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
+bool PN532Handler::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
 		uint8_t * uidLength, uint16_t timeout) {
 	pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
 	pn532_packetbuffer[1] = 1; // max 1 cards at once (we can set this to 2 later)
@@ -484,7 +485,7 @@ bool TagReaderWriter::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
  @param  responseLength  Pointer to the response data length
  */
 /**************************************************************************/
-bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength,
+bool PN532Handler::inDataExchange(uint8_t * send, uint8_t sendLength,
 		uint8_t * response, uint8_t * responseLength) {
 	if (sendLength > PN532_PACKBUFFSIZ - 2) {
 #ifdef PN532DEBUG
@@ -567,7 +568,7 @@ bool TagReaderWriter::inDataExchange(uint8_t * send, uint8_t sendLength,
  peer acting as card/responder.
  */
 /**************************************************************************/
-bool TagReaderWriter::inListPassiveTarget() {
+bool PN532Handler::inListPassiveTarget() {
 	pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
 	pn532_packetbuffer[1] = 1;
 	pn532_packetbuffer[2] = 0;
@@ -642,7 +643,7 @@ bool TagReaderWriter::inListPassiveTarget() {
  in the sector (block 0 relative to the current sector)
  */
 /**************************************************************************/
-bool TagReaderWriter::mifareclassic_IsFirstBlock(uint32_t uiBlock) {
+bool PN532Handler::mifareclassic_IsFirstBlock(uint32_t uiBlock) {
 	// Test if we are in the small or big sectors
 	if (uiBlock < 128)
 		return ((uiBlock) % 4 == 0);
@@ -655,7 +656,7 @@ bool TagReaderWriter::mifareclassic_IsFirstBlock(uint32_t uiBlock) {
  Indicates whether the specified block number is the sector trailer
  */
 /**************************************************************************/
-bool TagReaderWriter::mifareclassic_IsTrailerBlock(uint32_t uiBlock) {
+bool PN532Handler::mifareclassic_IsTrailerBlock(uint32_t uiBlock) {
 	// Test if we are in the small or big sectors
 	if (uiBlock < 128)
 		return ((uiBlock + 1) % 4 == 0);
@@ -682,7 +683,7 @@ bool TagReaderWriter::mifareclassic_IsTrailerBlock(uint32_t uiBlock) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock(uint8_t * uid,
+uint8_t PN532Handler::mifareclassic_AuthenticateBlock(uint8_t * uid,
 		uint8_t uidLen, uint32_t blockNumber, uint8_t keyNumber,
 		uint8_t * keyData) {
 	uint8_t i;
@@ -694,9 +695,9 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock(uint8_t * uid,
 
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Trying to authenticate card ");
-	TagReaderWriter::PrintHex(_uid, _uidLen);
+	PN532Handler::PrintHex(_uid, _uidLen);
 	reprap.GetPlatform().MessageF(HttpMessage, "Using authentication KEY ");reprap.GetPlatform().MessageF(HttpMessage,"%c", (keyNumber ? 'B' : 'A'));reprap.GetPlatform().MessageF(HttpMessage, ": ");
-	TagReaderWriter::PrintHex(_key, 6);
+	PN532Handler::PrintHex(_key, 6);
 #endif
 
 	// Prepare the authentication command //
@@ -721,7 +722,7 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock(uint8_t * uid,
 	if (pn532_packetbuffer[7] != 0x00) {
 #ifdef PN532DEBUG
 		reprap.GetPlatform().MessageF(HttpMessage, "Authentification failed: ");
-		TagReaderWriter::PrintHexChar(pn532_packetbuffer, 12);
+		PN532Handler::PrintHexChar(pn532_packetbuffer, 12);
 #endif
 		return 0;
 	}
@@ -742,7 +743,7 @@ uint8_t TagReaderWriter::mifareclassic_AuthenticateBlock(uint8_t * uid,
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareclassic_ReadDataBlock(uint8_t blockNumber,
+uint8_t PN532Handler::mifareclassic_ReadDataBlock(uint8_t blockNumber,
 		uint8_t * data) {
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Trying to read 16 uint8_ts from block ");reprap.GetPlatform().MessageF(HttpMessage, "%u",blockNumber);
@@ -769,7 +770,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock(uint8_t blockNumber,
 	if (pn532_packetbuffer[7] != 0x00) {
 #ifdef MIFAREDEBUG
 		reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response\n");
-		TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
+		PN532Handler::PrintHexChar(pn532_packetbuffer, 26);
 #endif
 		return 0;
 	}
@@ -782,7 +783,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock(uint8_t blockNumber,
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Block ");
 	reprap.GetPlatform().MessageF(HttpMessage, "%u\n",blockNumber);
-	TagReaderWriter::PrintHexChar(data, 16);
+	PN532Handler::PrintHexChar(data, 16);
 #endif
 
 	return 1;
@@ -800,7 +801,7 @@ uint8_t TagReaderWriter::mifareclassic_ReadDataBlock(uint8_t blockNumber,
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareclassic_WriteDataBlock(uint8_t blockNumber,
+uint8_t PN532Handler::mifareclassic_WriteDataBlock(uint8_t blockNumber,
 		uint8_t * data) {
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Trying to write 16 uint8_ts to block ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",blockNumber);
@@ -835,7 +836,7 @@ uint8_t TagReaderWriter::mifareclassic_WriteDataBlock(uint8_t blockNumber,
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareclassic_FormatNDEF(void) {
+uint8_t PN532Handler::mifareclassic_FormatNDEF(void) {
 	uint8_t sectorbuffer1[16] = { 0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03,
 			0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1 };
 	uint8_t sectorbuffer2[16] = { 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03,
@@ -877,7 +878,7 @@ uint8_t TagReaderWriter::mifareclassic_FormatNDEF(void) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareclassic_WriteNDEFURI(uint8_t sectorNumber,
+uint8_t PN532Handler::mifareclassic_WriteNDEFURI(uint8_t sectorNumber,
 		uint8_t uriIdentifier, const char * url) {
 	// Figure out how long the string is
 	uint8_t len = strlen(url);
@@ -954,7 +955,7 @@ uint8_t TagReaderWriter::mifareclassic_WriteNDEFURI(uint8_t sectorNumber,
  retrieved data (if any)
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareultralight_ReadPage(uint8_t page,
+uint8_t PN532Handler::mifareultralight_ReadPage(uint8_t page,
 		uint8_t * buffer) {
 	if (page >= 64) {
 #ifdef MIFAREDEBUG
@@ -985,7 +986,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage(uint8_t page,
 	readdata(pn532_packetbuffer, 26);
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Received: \n");
-	TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
+	PN532Handler::PrintHexChar(pn532_packetbuffer, 26);
 #endif
 
 	/* If uint8_t 8 isn't 0x00 we probably have an error */
@@ -999,7 +1000,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage(uint8_t page,
 	} else {
 #ifdef MIFAREDEBUG
 		reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response reading block: \n");
-		TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
+		PN532Handler::PrintHexChar(pn532_packetbuffer, 26);
 #endif
 		return 0;
 	}
@@ -1007,7 +1008,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage(uint8_t page,
 	/* Display data for debug if requested */
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",page);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
-	TagReaderWriter::PrintHexChar(buffer, 4);
+	PN532Handler::PrintHexChar(buffer, 4);
 #endif
 
 	// Return OK signal
@@ -1026,7 +1027,7 @@ uint8_t TagReaderWriter::mifareultralight_ReadPage(uint8_t page,
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::mifareultralight_WritePage(uint8_t page,
+uint8_t PN532Handler::mifareultralight_WritePage(uint8_t page,
 		uint8_t * data) {
 
 	if (page >= 64) {
@@ -1077,7 +1078,7 @@ uint8_t TagReaderWriter::mifareultralight_WritePage(uint8_t page,
  retrieved data (if any)
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
+uint8_t PN532Handler::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
 	// TAG Type       PAGES   USER START    USER STOP
 	// --------       -----   ----------    ---------
 	// NTAG 203       42      4             39
@@ -1114,7 +1115,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
 	readdata(pn532_packetbuffer, 26);
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Received: \n");
-	TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
+	PN532Handler::PrintHexChar(pn532_packetbuffer, 26);
 #endif
 
 	/* If uint8_t 8 isn't 0x00 we probably have an error */
@@ -1128,7 +1129,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
 	} else {
 #ifdef MIFAREDEBUG
 		reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response reading block: \n");
-		TagReaderWriter::PrintHexChar(pn532_packetbuffer, 26);
+		PN532Handler::PrintHexChar(pn532_packetbuffer, 26);
 #endif
 		return 0;
 	}
@@ -1136,7 +1137,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
 	/* Display data for debug if requested */
 #ifdef MIFAREDEBUG
 	reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",page);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
-	TagReaderWriter::PrintHexChar(buffer, 4);
+	PN532Handler::PrintHexChar(buffer, 4);
 #endif
 
 	// Return OK signal
@@ -1155,7 +1156,7 @@ uint8_t TagReaderWriter::ntag2xx_ReadPage(uint8_t page, uint8_t * buffer) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::ntag2xx_WritePage(uint8_t page, uint8_t * data) {
+uint8_t PN532Handler::ntag2xx_WritePage(uint8_t page, uint8_t * data) {
 	// TAG Type       PAGES   USER START    USER STOP
 	// --------       -----   ----------    ---------
 	// NTAG 203       42      4             39
@@ -1215,7 +1216,7 @@ uint8_t TagReaderWriter::ntag2xx_WritePage(uint8_t page, uint8_t * data) {
  @returns 1 if everything executed properly, 0 for an error
  */
 /**************************************************************************/
-uint8_t TagReaderWriter::ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char * url,
+uint8_t PN532Handler::ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char * url,
 		uint8_t dataLen) {
 	uint8_t pageBuffer[4] = { 0, 0, 0, 0 };
 
@@ -1304,7 +1305,7 @@ uint8_t TagReaderWriter::ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char * url,
  @brief  Tries to read the SPI or I2C ACK signal
  */
 /**************************************************************************/
-bool TagReaderWriter::readack() {
+bool PN532Handler::readack() {
 	uint8_t ackbuff[6];
 
 	readdata(ackbuff, 6);
@@ -1317,7 +1318,7 @@ bool TagReaderWriter::readack() {
  @brief  Return true if the PN532 is ready with a response.
  */
 /**************************************************************************/
-bool TagReaderWriter::isready() {
+bool PN532Handler::isready() {
 
 	uint8_t dataOut[1] = { 0 };
 	uint8_t rawBytes[1] = { 0 };
@@ -1334,7 +1335,7 @@ bool TagReaderWriter::isready() {
 
 	//delay(2);
 
-	dataOut[0] = data_lsbfirst_w(PN532_SPI_STATREAD);
+	dataOut[0] = data_lsbfirst(PN532_SPI_STATREAD);
 	sspi_write_packet(dataOut, 1);
 
 	sspi_read_packet(rawBytes, 1);
@@ -1344,7 +1345,7 @@ bool TagReaderWriter::isready() {
 	delayMicroseconds(1);
 
 	// read uint8_t
-	uint8_t x = data_lsbfirst_r(rawBytes[0]);
+	uint8_t x = data_lsbfirst(rawBytes[0]);
 
 	// Check if status is ready.
 	return x == PN532_SPI_READY;
@@ -1357,7 +1358,7 @@ bool TagReaderWriter::isready() {
  @param  timeout   Timeout before giving up
  */
 /**************************************************************************/
-bool TagReaderWriter::waitready(uint16_t timeout) {
+bool PN532Handler::waitready(uint16_t timeout) {
 	uint16_t timer = 0;
 	while (!isready()) {
 		if (timeout != 0) {
@@ -1378,7 +1379,7 @@ bool TagReaderWriter::waitready(uint16_t timeout) {
  @param  timeout   Timeout before giving up
  */
 /**************************************************************************/
-bool TagReaderWriter::waitready2(uint16_t timeout) {
+bool PN532Handler::waitready2(uint16_t timeout) {
 	uint16_t timer = 0;
 	while (!isready()) {
 		if (timeout != 0) {
@@ -1401,7 +1402,7 @@ bool TagReaderWriter::waitready2(uint16_t timeout) {
  @param  n         Number of uint8_ts to be read
  */
 /**************************************************************************/
-void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
+void PN532Handler::readdata(uint8_t* buff, uint8_t n) {
 
 	// SPI write.
 	uint8_t dataOut[1] = { 0 };
@@ -1420,7 +1421,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
 
 	//delay(2);
 
-	dataOut[0] = data_lsbfirst_w(PN532_SPI_DATAREAD);
+	dataOut[0] = data_lsbfirst(PN532_SPI_DATAREAD);
 	sspi_write_packet(dataOut, 1);
 
 #ifdef PN532DEBUG
@@ -1430,7 +1431,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
 	for (uint8_t i = 0; i < n; i++) {
 		delayMicroseconds(1);
 		sspi_read_packet(rawBytes, 1);
-		buff[i] = data_lsbfirst_r(rawBytes[0]);
+		buff[i] = data_lsbfirst(rawBytes[0]);
 #ifdef PN532DEBUG
 		reprap.GetPlatform().MessageF(HttpMessage, " 0x");
 		reprap.GetPlatform().MessageF(HttpMessage, "%02x",buff[i]);
@@ -1455,7 +1456,7 @@ void TagReaderWriter::readdata(uint8_t* buff, uint8_t n) {
  @param  cmdlen    Command length in uint8_ts
  */
 /**************************************************************************/
-void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
+void PN532Handler::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 
 	// SPI command write
 	uint8_t dataOut_1[1] = { 0 };
@@ -1479,31 +1480,31 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 
 	//delay(2);     // or whatever the delay is for waking up the board
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_SPI_DATAWRITE);
+	dataOut_1[0] = data_lsbfirst(PN532_SPI_DATAWRITE);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_PREAMBLE);
+	dataOut_1[0] = data_lsbfirst(PN532_PREAMBLE);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_PREAMBLE);
+	dataOut_1[0] = data_lsbfirst(PN532_PREAMBLE);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_STARTCODE2);
+	dataOut_1[0] = data_lsbfirst(PN532_STARTCODE2);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(cmdlen);
+	dataOut_1[0] = data_lsbfirst(cmdlen);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w((uint8_t) (~cmdlen + 1));
+	dataOut_1[0] = data_lsbfirst((uint8_t) (~cmdlen + 1));
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_HOSTTOPN532);
+	dataOut_1[0] = data_lsbfirst(PN532_HOSTTOPN532);
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
@@ -1521,7 +1522,7 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 
 	for (uint8_t i = 0; i < cmdlen - 1; i++) {
 
-		dataOut_1[0] = data_lsbfirst_w(cmd[i]);
+		dataOut_1[0] = data_lsbfirst(cmd[i]);
 		sspi_write_packet(dataOut_1, 1);
 		delayMicroseconds(1);
 		checksum += cmd[i];
@@ -1530,11 +1531,11 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 #endif
 	}
 
-	dataOut_1[0] = data_lsbfirst_w((~checksum));
+	dataOut_1[0] = data_lsbfirst((~checksum));
 	sspi_write_packet(dataOut_1, 1);
 	delayMicroseconds(1);
 
-	dataOut_1[0] = data_lsbfirst_w(PN532_POSTAMBLE);
+	dataOut_1[0] = data_lsbfirst(PN532_POSTAMBLE);
 	sspi_write_packet(dataOut_1, 1);
 
 	delayMicroseconds(1);
@@ -1551,36 +1552,21 @@ void TagReaderWriter::writecommand(uint8_t* cmd, uint8_t cmdlen) {
 /************** low level SPI */
 
 // bit shifting
-uint8_t TagReaderWriter::data_lsbfirst_w(uint8_t b) { // WRITE
+uint8_t PN532Handler::data_lsbfirst(uint8_t b) {
 
-	uint8_t w = 0x00;
+	uint8_t byte = 0x00;
 
 	for (uint8_t i = 0; i < 8; i++) {
 		if ((b & (1 << i))) {
-			w |= 1 << (7 - i);
+			byte |= 1 << (7 - i);
 		}
 
 	}
-	//reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)w);
-	return w;
+	//reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)byte);
+	return byte;
 }
-// bit shifting
 
-uint8_t TagReaderWriter::data_lsbfirst_r(uint8_t b) { //READ
-
-	uint8_t r = 0x00;
-
-	for (uint8_t i = 0; i < 8; i++) {
-
-		if ((b & (1 << i))) {
-			r |= 1 << (7 - i);
-		}
-
-	}
-	//reprap.GetPlatform().MessageF(HttpMessage, " 0x"); 	reprap.GetPlatform().MessageF(HttpMessage, "%02x",(uint8_t)r);
-	return r;
-}
-void TagReaderWriter::ProcessStates() {
+void PN532Handler::ProcessStates() {
 
 	const uint32_t now = millis();
 
@@ -1600,12 +1586,12 @@ void TagReaderWriter::ProcessStates() {
 
 
 
-	switch(current_RW_State){
+	switch(_RW_State){
 
 	case RW_State::none:
 		if (now - lastTime >= 2000) {
 			lastTime = millis();
-			current_RW_State = RW_State::writecommand;
+			_RW_State = RW_State::writecommand;
 		}
 		break;
 	case RW_State::writecommand:
@@ -1613,7 +1599,7 @@ void TagReaderWriter::ProcessStates() {
 		pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
 		pn532_packetbuffer[2] = PN532_MIFARE_ISO14443A;
 		writecommand(pn532_packetbuffer, 3);
-		current_RW_State = RW_State::waitready;
+		_RW_State = RW_State::waitready;
 		timeoutCount = 0;
 		timeoutWR = 100;
 		break;
@@ -1624,12 +1610,12 @@ void TagReaderWriter::ProcessStates() {
 			if (now - lastTime >= 10) {
 				lastTime = millis();
 				if(isready()){
-					current_RW_State = RW_State::readack;
+					_RW_State = RW_State::readack;
 				}else{
 					if(timeoutWR > timeoutCount){
 						timeoutWR += 10;
 					}else{
-						current_RW_State = RW_State::none;
+						_RW_State = RW_State::none;
 						//Timeout Message
 					}
 				}
@@ -1639,10 +1625,10 @@ void TagReaderWriter::ProcessStates() {
 	case RW_State::readack:
 		if (!readack()) {
 			//No Ack received
-			current_RW_State = RW_State::none;
+			_RW_State = RW_State::none;
 			lastTime = millis();
 		}else{
-			current_RW_State = RW_State::waitready2;
+			_RW_State = RW_State::waitready2;
 			timeoutCount = 0;
 			timeoutWR = 100;
 		}
@@ -1652,12 +1638,12 @@ void TagReaderWriter::ProcessStates() {
 			if (now - lastTime >= 10) {
 				lastTime = millis();
 				if(isready()){
-					current_RW_State = RW_State::readdata;
+					_RW_State = RW_State::readdata;
 				}else{
 					if(timeoutWR > timeoutCount){
 						timeoutWR += 10;
 					}else{
-						current_RW_State = RW_State::none;
+						_RW_State = RW_State::none;
 						//Timeout Message
 					}
 				}
@@ -1685,7 +1671,7 @@ void TagReaderWriter::ProcessStates() {
 		reprap.GetPlatform().MessageF(HttpMessage, "Found "); reprap.GetPlatform().MessageF(HttpMessage, "%u", pn532_packetbuffer[7]); reprap.GetPlatform().MessageF(HttpMessage, " tags\n");
 	#endif
 		if (pn532_packetbuffer[7] != 1){
-			current_RW_State = RW_State::none;
+			_RW_State = RW_State::none;
 			lastTime = millis();
 			break;
 		}
@@ -1724,7 +1710,7 @@ void TagReaderWriter::ProcessStates() {
 		reprap.GetPlatform().MessageF(HttpMessage, "\n");
 
 
-		current_RW_State = RW_State::none;
+		_RW_State = RW_State::none;
 		lastTime = millis();
 		break;
 
@@ -1733,10 +1719,14 @@ void TagReaderWriter::ProcessStates() {
 
 }
 
-void TagReaderWriter::Spin() {
-	MutexLocker lock(TagReaderWriterMutex);
+RFID_device_status PN532Handler::Get_PN532_Status(){
+	return _PN532_status;
+}
 
-	if (isInit) {
+void PN532Handler::Spin() {
+	MutexLocker lock(PN532HandlerMutex);
+
+	if (_PN532_status == RFID_device_status::online) {
 
 		ProcessStates();
 		/*

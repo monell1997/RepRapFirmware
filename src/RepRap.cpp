@@ -187,7 +187,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	move = new Move();
 	heat = new Heat(*platform);
 #ifdef BCN3D_DEV
-	tagreaderwriter = new TagReaderWriter(0);
+	tagreaderwriter = new PN532Handler(0);
 	spoolsupplier = new SpoolSupplier();
 #endif
 #if SUPPORT_ROLAND

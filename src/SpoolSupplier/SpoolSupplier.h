@@ -5,6 +5,8 @@
  *      Author: agarciamoreno
  */
 #include "RepRap.h"
+#include "RFID/PN532Handler.h"
+#include "RFID/RFIDdevicestatus.h"
 #ifndef SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
@@ -38,14 +40,17 @@ public:
 	void SendtoPrinter(const MessageType type);
 
 	void PrintJSON(const MessageType type);
+
+
 private:
 	float target_temperature[N_Spools];
 	float current_temperature[N_Spools];
 	float current_humidity[N_Spools];
 	uint8_t spool_remaining[N_Spools];
 	unsigned int spool_id[N_Spools];
-
 	static Mutex SpoolSupplierMutex;
+
+	RFID_device_status RWrfid_s;
 
 	bool master; // true if Edurne
 	bool online; // true if Edurne

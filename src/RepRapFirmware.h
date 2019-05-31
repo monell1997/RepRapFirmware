@@ -94,7 +94,7 @@ class FilamentMonitor;
 class RandomProbePointSet;
 class Logger;
 #ifdef BCN3D_DEV
-class TagReaderWriter;
+class PN532Handler;
 class SpoolSupplier;
 class HdcSensorHardwareInterface;
 #endif
