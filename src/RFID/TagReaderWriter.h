@@ -8,7 +8,6 @@
 #ifndef SRC_RFID_TAGREADERWRITER_H_
 #define SRC_RFID_TAGREADERWRITER_H_
 
-
 #include "RepRap.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
@@ -133,69 +132,89 @@
 #define PN532_GPIO_P34                      (4)
 #define PN532_GPIO_P35                      (5)
 
-class TagReaderWriter{
- public:
+class TagReaderWriter {
+	enum class RW_State : uint8_t
+		{
+		none,
+		writecommand,
+		waitready,
+		waitready2,
+		readack,
+		readdata,
+		lastRW_State = readdata
+	};
+public:
 	TagReaderWriter(uint8_t ss);  // Hardware SPI
 	void Spin();
-  void begin(void);
+	void begin(void);
 
-  // Generic PN532 functions
-  bool     SAMConfig(void);
-  uint32_t getFirmwareVersion(void);
-  bool     sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t timeout = 1000);
-  bool     writeGPIO(uint8_t pinstate);
-  uint8_t  readGPIO(void);
-  bool     setPassiveActivationRetries(uint8_t maxRetries);
+	// Generic PN532 functions
+	bool SAMConfig(void);
+	uint32_t getFirmwareVersion(void);
+	bool sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t timeout =
+			1000);
+	bool writeGPIO(uint8_t pinstate);
+	uint8_t readGPIO(void);
+	bool setPassiveActivationRetries(uint8_t maxRetries);
 
-  // ISO14443A functions
-  bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength, uint16_t timeout = 0); //timeout 0 means no timeout - will block forever.
-  bool inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response, uint8_t * responseLength);
-  bool inListPassiveTarget();
+	// ISO14443A functions
+	bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
+			uint8_t * uidLength, uint16_t timeout = 0); //timeout 0 means no timeout - will block forever.
+	bool inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response,
+			uint8_t * responseLength);
+	bool inListPassiveTarget();
 
-  // Mifare Classic functions
-  bool    mifareclassic_IsFirstBlock (uint32_t uiBlock);
-  bool    mifareclassic_IsTrailerBlock (uint32_t uiBlock);
-  uint8_t mifareclassic_AuthenticateBlock (uint8_t * uid, uint8_t uidLen, uint32_t blockNumber, uint8_t keyNumber, uint8_t * keyData);
-  uint8_t mifareclassic_ReadDataBlock (uint8_t blockNumber, uint8_t * data);
-  uint8_t mifareclassic_WriteDataBlock (uint8_t blockNumber, uint8_t * data);
-  uint8_t mifareclassic_FormatNDEF (void);
-  uint8_t mifareclassic_WriteNDEFURI (uint8_t sectorNumber, uint8_t uriIdentifier, const char * url);
+	// Mifare Classic functions
+	bool mifareclassic_IsFirstBlock(uint32_t uiBlock);
+	bool mifareclassic_IsTrailerBlock(uint32_t uiBlock);
+	uint8_t mifareclassic_AuthenticateBlock(uint8_t * uid, uint8_t uidLen,
+			uint32_t blockNumber, uint8_t keyNumber, uint8_t * keyData);
+	uint8_t mifareclassic_ReadDataBlock(uint8_t blockNumber, uint8_t * data);
+	uint8_t mifareclassic_WriteDataBlock(uint8_t blockNumber, uint8_t * data);
+	uint8_t mifareclassic_FormatNDEF(void);
+	uint8_t mifareclassic_WriteNDEFURI(uint8_t sectorNumber,
+			uint8_t uriIdentifier, const char * url);
 
-  // Mifare Ultralight functions
-  uint8_t mifareultralight_ReadPage (uint8_t page, uint8_t * buffer);
-  uint8_t mifareultralight_WritePage (uint8_t page, uint8_t * data);
+	// Mifare Ultralight functions
+	uint8_t mifareultralight_ReadPage(uint8_t page, uint8_t * buffer);
+	uint8_t mifareultralight_WritePage(uint8_t page, uint8_t * data);
 
-  // NTAG2xx functions
-  uint8_t ntag2xx_ReadPage (uint8_t page, uint8_t * buffer);
-  uint8_t ntag2xx_WritePage (uint8_t page, uint8_t * data);
-  uint8_t ntag2xx_WriteNDEFURI (uint8_t uriIdentifier, char * url, uint8_t dataLen);
+	// NTAG2xx functions
+	uint8_t ntag2xx_ReadPage(uint8_t page, uint8_t * buffer);
+	uint8_t ntag2xx_WritePage(uint8_t page, uint8_t * data);
+	uint8_t ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char * url,
+			uint8_t dataLen);
 
-  // Help functions to display formatted text
-  static void PrintHex(const uint8_t * data, const uint32_t numBytes);
-  static void PrintHexChar(const uint8_t * pbtData, const uint32_t numBytes);
-  bool isInit = false;
- private:
-  static Mutex TagReaderWriterMutex;
-  sspi_device device;
-  uint8_t _uid[7];       // ISO14443A uid
-  uint8_t _uidLen;       // uid len
-  uint8_t _key[6];       // Mifare Classic key
-  uint8_t _inListedTag;  // Tg number of inlisted tag.
-  bool    _usingSPI;     // True if using SPI, false if using I2C.
-  bool    _hardwareSPI;  // True is using hardware SPI, false if using software SPI.
+	// Help functions to display formatted text
+	static void PrintHex(const uint8_t * data, const uint32_t numBytes);
+	static void PrintHexChar(const uint8_t * pbtData, const uint32_t numBytes);
+	bool isInit = false;
+private:
+	static Mutex TagReaderWriterMutex;
+	sspi_device device;
+	uint8_t _uid[7];       // ISO14443A uid
+	uint8_t _uidLen;       // uid len
+	uint8_t _key[6];       // Mifare Classic key
+	uint8_t _inListedTag;  // Tg number of inlisted tag.
+	bool _usingSPI;     // True if using SPI, false if using I2C.
+	bool _hardwareSPI; // True is using hardware SPI, false if using software SPI.
 
-  // Low level communication functions that handle both SPI and I2C.
-  uint8_t data_lsbfirst_w(uint8_t b);
-  uint8_t data_lsbfirst_r(uint8_t b);
-  void readdata(uint8_t* buff, uint8_t n);
-  void writecommand(uint8_t* cmd, uint8_t cmdlen);
-  bool isready();
-  bool waitready(uint16_t timeout);
-  bool readack();
+	// Low level communication functions that handle both SPI and I2C.
+	uint8_t data_lsbfirst_w(uint8_t b);
+	uint8_t data_lsbfirst_r(uint8_t b);
+	void readdata(uint8_t* buff, uint8_t n);
+	void writecommand(uint8_t* cmd, uint8_t cmdlen);
+	bool isready();
+	bool waitready(uint16_t timeout);
+	bool waitready2(uint16_t timeout);
+	bool readack();
 
-  // SPI-specific functions.
-  //void    spi_write(uint8_t c);
-  //uint8_t spi_read(void);
+	RW_State current_RW_State;
+	void ProcessStates();
+
+	uint32_t lastTime;
+	uint32_t timeoutWR;
+	uint32_t timeoutCount;
 
 };
 #endif /* SRC_RFID_TAGREADERWRITER_H_ */
