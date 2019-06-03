@@ -1687,8 +1687,8 @@ GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply)
 	if (gb.Seen('S')){
 		ss = (uint8_t)gb.GetUIValue();
 
-		if(ss > MaxSpiTempSensors){
-			reply.copy("Spi channel are not between 0-%d",(int)MaxSpiTempSensors);
+		if(ss >= N_Spools){
+			reply.copy("Spi channel are not between 0-%d",(int)(N_Spools-1));
 			return GCodeResult::badOrMissingParameter;
 		}
 
