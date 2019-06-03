@@ -44,6 +44,13 @@ uint8_t SpoolSupplier::Get_Spool_Remaining(size_t idex){
 void SpoolSupplier::Set_Spool_Remaining(size_t idex, uint8_t rem){
 	spool_remaining[idex] = rem;
 }
+void SpoolSupplier::Set_Spool_Remaining(size_t idex, const uint8_t * data, const uint32_t numBytes){
+	uint8_t rem = 0;
+	for(size_t i = 0; i< numBytes; i++){// should be 1
+		rem |= (data[i]<<8*i);
+	}
+	spool_remaining[idex] = rem;
+}
 float SpoolSupplier::Get_Current_Humidity(size_t idex){
 	return current_humidity[idex];
 }
@@ -63,10 +70,17 @@ void SpoolSupplier::Update_Current_Temperature(size_t idex, float temp){ // if t
 	if(!master)lastTime = millis();
 	current_temperature[idex] = temp;
 }
-unsigned int SpoolSupplier::Get_Spool_id(size_t idex){
+uint32_t SpoolSupplier::Get_Spool_id(size_t idex){
 	return spool_id[idex];
 }
-void SpoolSupplier::Set_Spool_id(size_t idex, unsigned int id){
+void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){
+	spool_id[idex] = id;
+}
+void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){
+	uint32_t id = 0;
+	for(size_t i = 0; i< numBytes; i++){// should be 4
+		id |= (data[i]<<8*i);
+	}
 	spool_id[idex] = id;
 }
 void SpoolSupplier::Set_Master_Status(bool status){
@@ -92,7 +106,7 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%u",spool_id[i]);
+			r->catf("%lu",spool_id[i]);
 		}
 		r->cat(" R");
 		for(i = 0; i<N_Spools;i++){
@@ -153,7 +167,7 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 	}
 	for(int i = 0; i<N_Spools;i++){
 
-		r->catf("[\"sl_id_%d\":\"%u\"",i, spool_id[i]);
+		r->catf("[\"sl_id_%d\":\"%lu\"",i, spool_id[i]);
 		r->catf(",\"sl_rem\":\"%u\"",spool_remaining[i]);
 		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
 		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);

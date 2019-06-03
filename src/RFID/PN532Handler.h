@@ -8,6 +8,7 @@
 #ifndef SRC_RFID_PN532HANDLER_H_
 #define SRC_RFID_PN532HANDLER_H_
 
+#include "RFID/SpoolRDIFReader.h"
 #include "RepRap.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
@@ -133,6 +134,14 @@
 #define PN532_GPIO_P34                      (4)
 #define PN532_GPIO_P35                      (5)
 
+#define LOOP_PROCESS_GETUID					(1)
+#define LOOP_PROCESS_READ_PAGE1				(5)
+#define LOOP_PROCESS_READ_PAGE2				(6)
+#define LOOP_PROCESS_READ_NONE				(4)
+
+#define RESET_LOOP							{_RW_State = RW_State::none; lastTime = millis();return;}
+
+
 
 enum class RW_State
 	: uint8_t
@@ -149,9 +158,9 @@ enum class RW_State
 class PN532Handler {
 
 public:
-	PN532Handler(uint8_t ss);  // SPI
+	PN532Handler(uint8_t spool);  // SPI
 	void Spin();
-	void begin(void);
+	void Init();
 
 	RFID_device_status Get_PN532_Status();
 
@@ -196,7 +205,9 @@ public:
 	static void PrintHex(const uint8_t * data, const uint32_t numBytes);
 	static void PrintHexChar(const uint8_t * pbtData, const uint32_t numBytes);
 private:
+
 	static Mutex PN532HandlerMutex;
+
 	sspi_device device;
 	uint8_t _uid[7];       // ISO14443A uid
 	uint8_t _uidLen;       // uid len
@@ -219,6 +230,8 @@ private:
 	uint32_t lastTime;
 	uint32_t timeoutWR;
 	uint32_t timeoutCount;
+
+	size_t spool_index;
 
 };
 #endif /* SRC_RFID_PN532HANDLER_H_ */

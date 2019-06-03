@@ -4,7 +4,8 @@
  *  Created on: 29 abr. 2019
  *      Author: agarciamoreno
  */
-#include <RFID/PN532Handler.h>
+#include "RFID/SpoolRDIFReader.h"
+#include "RFID/PN532Handler.h"
 #include "RepRap.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
@@ -19,8 +20,8 @@ uint8_t pn532ack[] = { 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00 };
 uint8_t pn532response_firmwarevers[] = { 0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03 };
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
-// #define PN532DEBUG
-// #define MIFAREDEBUG
+ #define PN532DEBUG
+ #define MIFAREDEBUG
 
 // If using Native Port on Arduino Zero or Due define as SerialUSB
 //#define PN532DEBUGPRINT Serial
@@ -44,9 +45,9 @@ const uint8_t PN532_SpiMode = SPI_MODE_0;
  @param  ss        SPI chip select pin (CS/SSEL)
  */
 /**************************************************************************/
-PN532Handler::PN532Handler(uint8_t ss)
+PN532Handler::PN532Handler(uint8_t spool)
 	{
-	device.csPin = SpiTempSensorCsPins[ss];	// CS1 up to CS4
+	device.csPin = SpiTempSensorCsPins[spool];	// CS1 up to CS4
 	device.csPolarity = false;						// active low chip select
 	device.spiMode = PN532_SpiMode;
 	device.clockFrequency = PN532_Frequency;
@@ -56,7 +57,7 @@ PN532Handler::PN532Handler(uint8_t ss)
 
 	timeoutWR = 0;
 	lastTime = 0;
-
+	spool_index	= spool;
 	PN532HandlerMutex.Create("TagReaderWriter");
 }
 
@@ -65,7 +66,7 @@ PN532Handler::PN532Handler(uint8_t ss)
  @brief  Setups the HW
  */
 /**************************************************************************/
-void PN532Handler::begin() {
+void PN532Handler::Init() {
 
 	sspi_master_init(&device, 8);
 
@@ -135,10 +136,10 @@ void PN532Handler::PrintHexChar(const uint8_t * data,
 	uint32_t szPos;
 	for (szPos = 0; szPos < numuint8_ts; szPos++) {
 		// Append leading 0 for small values
-		if (data[szPos] <= 0xF) {
-			reprap.GetPlatform().MessageF(HttpMessage, "0");
-			reprap.GetPlatform().MessageF(HttpMessage, "%02x", data[szPos]);
-		}
+
+		reprap.GetPlatform().MessageF(HttpMessage, "0x");
+		reprap.GetPlatform().MessageF(HttpMessage, "%02x", data[szPos]);
+
 		if ((numuint8_ts > 1) && (szPos != numuint8_ts - 1)) {
 			reprap.GetPlatform().MessageF(HttpMessage, " ");
 		}
@@ -1346,7 +1347,7 @@ bool PN532Handler::isready() {
 
 	// read uint8_t
 	uint8_t x = data_lsbfirst(rawBytes[0]);
-
+	//reprap.GetPlatform().MessageF(HttpMessage, "0x%02x ", x);
 	// Check if status is ready.
 	return x == PN532_SPI_READY;
 }
@@ -1569,10 +1570,11 @@ uint8_t PN532Handler::data_lsbfirst(uint8_t b) {
 void PN532Handler::ProcessStates() {
 
 	const uint32_t now = millis();
-
+	static uint16_t loop_state = LOOP_PROCESS_READ_NONE;
+	uint8_t datapage[32] = {0};
 	//uint8_t success; // Flag to check if there was an error with the PN532
 	uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 }; // Buffer to store the returned UID
-	uint8_t uidLength; // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+	static uint8_t uidLength=0; // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
 	//uint8_t currentblock; // Counter to keep track of which block we're on
 	//bool authenticated = false; // Flag to indicate if the sector is authenticated
 	//uint8_t data[16];          // Array to store block data during reads
@@ -1586,22 +1588,54 @@ void PN532Handler::ProcessStates() {
 
 
 
-	switch(_RW_State){
+	switch(_RW_State){////////// 1º establish Connection with card - 2º Read Data from card (depents type) - 3º Write something(not implemented yet)
 
 	case RW_State::none:
 		if (now - lastTime >= 2000) {
 			lastTime = millis();
 			_RW_State = RW_State::writecommand;
+			loop_state = LOOP_PROCESS_GETUID;
 		}
 		break;
 	case RW_State::writecommand:
-		pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
-		pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
-		pn532_packetbuffer[2] = PN532_MIFARE_ISO14443A;
-		writecommand(pn532_packetbuffer, 3);
+		switch(loop_state){
+			case LOOP_PROCESS_GETUID:
+				{
+					pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+					pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
+					pn532_packetbuffer[2] = PN532_MIFARE_ISO14443A;
+					writecommand(pn532_packetbuffer, 3);
+					//#ifdef MIFAREDEBUG
+					//reprap.GetPlatform().MessageF(HttpMessage, "Get ID Card %d\n", (int)device.csPin);
+					//#endif
+				}
+				break;
+			case LOOP_PROCESS_READ_PAGE1:
+			case LOOP_PROCESS_READ_PAGE2:
+				{
+					if (LOOP_PROCESS_READ_PAGE2 >= 64) {
+				#ifdef MIFAREDEBUG
+						reprap.GetPlatform().MessageF(HttpMessage, "Page value out of range\n");
+				#endif
+						RESET_LOOP;
+					}
+
+				//#ifdef MIFAREDEBUG
+					reprap.GetPlatform().MessageF(HttpMessage, "Reading page ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",loop_state);
+				//#endif
+
+					/* Prepare the command */
+					pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
+					pn532_packetbuffer[1] = 1; /* Card number */
+					pn532_packetbuffer[2] = MIFARE_CMD_READ; /* Mifare Read command = 0x30 */
+					pn532_packetbuffer[3] = loop_state; /* Page Number (0..63 in most cases) */
+					writecommand(pn532_packetbuffer, 4);
+				}
+				break;
+		}
 		_RW_State = RW_State::waitready;
 		timeoutCount = 0;
-		timeoutWR = 100;
+		timeoutWR = 1000;
 		break;
 
 	case RW_State::waitready:
@@ -1613,9 +1647,10 @@ void PN532Handler::ProcessStates() {
 					_RW_State = RW_State::readack;
 				}else{
 					if(timeoutWR > timeoutCount){
-						timeoutWR += 10;
+						timeoutCount += 10;
 					}else{
-						_RW_State = RW_State::none;
+
+						RESET_LOOP;
 						//Timeout Message
 					}
 				}
@@ -1623,14 +1658,15 @@ void PN532Handler::ProcessStates() {
 		}
 		break;
 	case RW_State::readack:
+
 		if (!readack()) {
 			//No Ack received
-			_RW_State = RW_State::none;
-			lastTime = millis();
+			RESET_LOOP;
 		}else{
 			_RW_State = RW_State::waitready2;
 			timeoutCount = 0;
-			timeoutWR = 100;
+			timeoutWR = 2000;
+			//reprap.GetPlatform().MessageF(HttpMessage, "Step 1\n");
 		}
 		break;
 	case RW_State::waitready2:
@@ -1639,11 +1675,13 @@ void PN532Handler::ProcessStates() {
 				lastTime = millis();
 				if(isready()){
 					_RW_State = RW_State::readdata;
+					reprap.GetPlatform().MessageF(HttpMessage, "Step 3\n");
 				}else{
 					if(timeoutWR > timeoutCount){
-						timeoutWR += 10;
+						timeoutCount += 10;
 					}else{
-						_RW_State = RW_State::none;
+						reprap.GetPlatform().MessageF(HttpMessage, "Step 2\n");
+						RESET_LOOP;
 						//Timeout Message
 					}
 				}
@@ -1651,66 +1689,122 @@ void PN532Handler::ProcessStates() {
 		}
 		break;
 	case RW_State::readdata:
-		// read data packet
-		readdata(pn532_packetbuffer, 20);
-		// check some basic stuff
+		switch(loop_state){
+		case LOOP_PROCESS_GETUID:
+			{
+				// read data packet
+				readdata(pn532_packetbuffer, 20);
+				// check some basic stuff
 
-		/* ISO14443A card response should be in the following format:
+				/* ISO14443A card response should be in the following format:
 
-		 uint8_t            Description
-		 -------------   ------------------------------------------
-		 b0..6           Frame header and preamble
-		 b7              Tags Found
-		 b8              Tag Number (only one used in this example)
-		 b9..10          SENS_RES
-		 b11             SEL_RES
-		 b12             NFCID Length
-		 b13..NFCIDLen   NFCID                                      */
+				 uint8_t            Description
+				 -------------   ------------------------------------------
+				 b0..6           Frame header and preamble
+				 b7              Tags Found
+				 b8              Tag Number (only one used in this example)
+				 b9..10          SENS_RES
+				 b11             SEL_RES
+				 b12             NFCID Length
+				 b13..NFCIDLen   NFCID                                      */
 
-	#ifdef MIFAREDEBUG
-		reprap.GetPlatform().MessageF(HttpMessage, "Found "); reprap.GetPlatform().MessageF(HttpMessage, "%u", pn532_packetbuffer[7]); reprap.GetPlatform().MessageF(HttpMessage, " tags\n");
-	#endif
-		if (pn532_packetbuffer[7] != 1){
-			_RW_State = RW_State::none;
-			lastTime = millis();
+			#ifdef MIFAREDEBUG
+				reprap.GetPlatform().MessageF(HttpMessage, "Found "); reprap.GetPlatform().MessageF(HttpMessage, "%u", pn532_packetbuffer[7]); reprap.GetPlatform().MessageF(HttpMessage, " tags\n");
+			#endif
+				if (pn532_packetbuffer[7] != 1){
+					RESET_LOOP;
+				}
+
+
+				uint16_t sens_res = pn532_packetbuffer[9];
+				sens_res <<= 8;
+				sens_res |= pn532_packetbuffer[10];
+			#ifdef MIFAREDEBUG
+				reprap.GetPlatform().MessageF(HttpMessage, "ATQA: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",sens_res);
+				reprap.GetPlatform().MessageF(HttpMessage, "SAK: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[11]);
+			#endif
+
+				/* Card appears to be Mifare Classic */
+				uidLength = pn532_packetbuffer[12];
+			#ifdef MIFAREDEBUG
+				reprap.GetPlatform().MessageF(HttpMessage, "UID:");
+			#endif
+				for (uint8_t i = 0; i < pn532_packetbuffer[12]; i++) {
+					uid[i] = pn532_packetbuffer[13 + i];
+			#ifdef MIFAREDEBUG
+					reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",uid[i]);
+			#endif
+				}
+			#ifdef MIFAREDEBUG
+				reprap.GetPlatform().MessageF(HttpMessage, "\n");
+			#endif
+				// Display some basic information about the card
+				reprap.GetPlatform().MessageF(HttpMessage,
+						"Found an ISO14443A card\n");
+				reprap.GetPlatform().MessageF(HttpMessage, "  UID Length: %d",
+						uidLength);
+				reprap.GetPlatform().MessageF(HttpMessage, " bytes\n");
+				reprap.GetPlatform().MessageF(HttpMessage, "  UID Value: ");
+				PrintHex(uid, uidLength);
+				reprap.GetPlatform().MessageF(HttpMessage, "\n");
+
+				_RW_State = RW_State::writecommand;
+				loop_state = LOOP_PROCESS_READ_PAGE1;
+
+
+			}
 			break;
+		case LOOP_PROCESS_READ_PAGE1:
+		case LOOP_PROCESS_READ_PAGE2:
+			{
+				if(uidLength == 4){
+					reprap.GetPlatform().MessageF(HttpMessage, "Only Mifare Ultralight cards \n");
+					RESET_LOOP;
+
+				}else if(uidLength == 7){ // Mifare Ultralight
+					/* Read the response packet */
+						readdata(pn532_packetbuffer, 26);
+					#ifdef MIFAREDEBUG
+						reprap.GetPlatform().MessageF(HttpMessage, "Received: \n");
+						PN532Handler::PrintHex(pn532_packetbuffer, 26);
+					#endif
+
+						/* If uint8_t 8 isn't 0x00 we probably have an error */
+						if (pn532_packetbuffer[7] == 0x00) {
+							/* Copy the 4 data uint8_ts to the output buffer         */
+							/* Block content starts at uint8_t 9 of a valid response */
+							/* Note that the command actually reads 16 uint8_t or 4  */
+							/* pages at a time ... we simply discard the last 12  */
+							/* uint8_ts                                              */
+							memcpy(datapage, pn532_packetbuffer + 8, 4);
+						} else {
+					#ifdef MIFAREDEBUG
+							reprap.GetPlatform().MessageF(HttpMessage, "Unexpected response reading block: \n");
+							PN532Handler::PrintHex(pn532_packetbuffer, 26);
+					#endif
+							RESET_LOOP;
+						}
+
+						/* Display data for debug if requested */
+					//#ifdef MIFAREDEBUG
+						reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",loop_state);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
+						PN532Handler::PrintHex(datapage, 4);
+					//#endif
+				}
+				if(loop_state == LOOP_PROCESS_READ_PAGE1){
+					reprap.GetSpoolSupplier().Set_Spool_id(spool_index,datapage,4);
+					_RW_State = RW_State::writecommand;
+					loop_state = LOOP_PROCESS_READ_PAGE2;
+				}else if(loop_state == LOOP_PROCESS_READ_PAGE2){
+					reprap.GetSpoolSupplier().Set_Spool_Remaining(spool_index,datapage,1);
+					_RW_State = RW_State::none;
+					loop_state = LOOP_PROCESS_READ_NONE;
+				}
+			}
+			break;
+
 		}
 
-
-		uint16_t sens_res = pn532_packetbuffer[9];
-		sens_res <<= 8;
-		sens_res |= pn532_packetbuffer[10];
-	#ifdef MIFAREDEBUG
-		reprap.GetPlatform().MessageF(HttpMessage, "ATQA: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",sens_res);
-		reprap.GetPlatform().MessageF(HttpMessage, "SAK: 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x\n",pn532_packetbuffer[11]);
-	#endif
-
-		/* Card appears to be Mifare Classic */
-		uidLength = pn532_packetbuffer[12];
-	#ifdef MIFAREDEBUG
-		reprap.GetPlatform().MessageF(HttpMessage, "UID:");
-	#endif
-		for (uint8_t i = 0; i < pn532_packetbuffer[12]; i++) {
-			uid[i] = pn532_packetbuffer[13 + i];
-	#ifdef MIFAREDEBUG
-			reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",uid[i]);
-	#endif
-		}
-	#ifdef MIFAREDEBUG
-		reprap.GetPlatform().MessageF(HttpMessage, "\n");
-	#endif
-		// Display some basic information about the card
-		reprap.GetPlatform().MessageF(HttpMessage,
-				"Found an ISO14443A card\n");
-		reprap.GetPlatform().MessageF(HttpMessage, "  UID Length: %d",
-				uidLength);
-		reprap.GetPlatform().MessageF(HttpMessage, " bytes\n");
-		reprap.GetPlatform().MessageF(HttpMessage, "  UID Value: ");
-		PrintHex(uid, uidLength);
-		reprap.GetPlatform().MessageF(HttpMessage, "\n");
-
-
-		_RW_State = RW_State::none;
 		lastTime = millis();
 		break;
 
@@ -1718,6 +1812,8 @@ void PN532Handler::ProcessStates() {
 	}
 
 }
+
+
 
 RFID_device_status PN532Handler::Get_PN532_Status(){
 	return _PN532_status;
@@ -1729,120 +1825,7 @@ void PN532Handler::Spin() {
 	if (_PN532_status == RFID_device_status::online) {
 
 		ProcessStates();
-		/*
-		const uint32_t now = millis();
-		if (now - lastTime >= 2000) {
-			lastTime = millis();
 
-			uint8_t success; // Flag to check if there was an error with the PN532
-			uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 }; // Buffer to store the returned UID
-			uint8_t uidLength; // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
-			uint8_t currentblock; // Counter to keep track of which block we're on
-			bool authenticated = false; // Flag to indicate if the sector is authenticated
-			uint8_t data[16];          // Array to store block data during reads
-
-			// Keyb on NDEF and Mifare Classic should be the same
-			uint8_t keyuniversal[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-
-			// Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
-			// 'uid' will be populated with the UID, and uidLength will indicate
-			// if the uid is 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
-			success = readPassiveTargetID(PN532_MIFARE_ISO14443A, uid,
-					&uidLength);
-
-			if (success) {
-				// Display some basic information about the card
-				reprap.GetPlatform().MessageF(HttpMessage,
-						"Found an ISO14443A card\n");
-				reprap.GetPlatform().MessageF(HttpMessage, "  UID Length: %d",
-						uidLength);
-				reprap.GetPlatform().MessageF(HttpMessage, " bytes\n");
-				reprap.GetPlatform().MessageF(HttpMessage, "  UID Value: ");
-				PrintHex(uid, uidLength);
-				reprap.GetPlatform().MessageF(HttpMessage, "\n");
-
-				 if (uidLength == 4) {
-				 // We probably have a Mifare Classic card ...
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Seems to be a Mifare Classic card (4 byte UID)\n");
-
-				 // Now we try to go through all 16 sectors (each having 4 blocks)
-				 // authenticating each sector, and then dumping the blocks
-				 for (currentblock = 0; currentblock < 64; currentblock++) {
-				 // Check if this is a new block so that we can reauthenticate
-				 if (mifareclassic_IsFirstBlock(currentblock))
-				 authenticated = false;
-
-				 // If the sector hasn't been authenticated, do so first
-				 if (!authenticated) {
-				 // Starting of a new sector ... try to to authenticate
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "------------------------Sector %d",
-				 currentblock / 4);
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "-------------------------\n");
-				 if (currentblock == 0) {
-				 // This will be 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF for Mifare Classic (non-NDEF!)
-				 // or 0xA0 0xA1 0xA2 0xA3 0xA4 0xA5 for NDEF formatted cards using key a,
-				 // but keyb should be the same for both (0xFF 0xFF 0xFF 0xFF 0xFF 0xFF)
-				 success = mifareclassic_AuthenticateBlock(uid,
-				 uidLength, currentblock, 1,
-				 keyuniversal);
-				 } else {
-				 // This will be 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF for Mifare Classic (non-NDEF!)
-				 // or 0xD3 0xF7 0xD3 0xF7 0xD3 0xF7 for NDEF formatted cards using key a,
-				 // but keyb should be the same for both (0xFF 0xFF 0xFF 0xFF 0xFF 0xFF)
-				 success = mifareclassic_AuthenticateBlock(uid,
-				 uidLength, currentblock, 1,
-				 keyuniversal);
-				 }
-				 if (success) {
-				 authenticated = true;
-				 } else {
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Authentication error\n");
-				 }
-				 }
-				 // If we're still not authenticated just skip the block
-				 if (!authenticated) {
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Block %d", currentblock);
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 " unable to authenticate\n");
-				 } else {
-				 // Authenticated ... we should be able to read the block now
-				 // Dump the data into the 'data' array
-				 success = mifareclassic_ReadDataBlock(currentblock,
-				 data);
-				 if (success) {
-				 // Read successful
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Block %d", currentblock);
-				 if (currentblock < 10) {
-				 reprap.GetPlatform().MessageF(
-				 HttpMessage, "  ");
-				 } else {
-				 reprap.GetPlatform().MessageF(
-				 HttpMessage, " ");
-				 }
-				 // Dump the raw data
-				 PrintHexChar(data, 16);
-				 } else {
-				 // Oops ... something happened
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Block %d", currentblock);
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 " unable to read this block\n");
-				 }
-				 }
-				 }
-				 } else {
-				 reprap.GetPlatform().MessageF(HttpMessage,
-				 "Ooops ... this doesn't seem to be a Mifare Classic card!\n");
-
-			}
-
-		}}*/
 	}
 
 }

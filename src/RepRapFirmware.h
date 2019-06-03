@@ -94,7 +94,7 @@ class FilamentMonitor;
 class RandomProbePointSet;
 class Logger;
 #ifdef BCN3D_DEV
-class PN532Handler;
+class SpoolRDIF_Reader;
 class SpoolSupplier;
 class HdcSensorHardwareInterface;
 #endif
