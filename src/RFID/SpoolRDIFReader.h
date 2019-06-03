@@ -22,7 +22,7 @@ class SpoolRDIF_Reader {
 public:
 	SpoolRDIF_Reader();
 
-	void Spin();
+	void Task();
 	// Initialise or re-initialise the temperature sensor
 	//virtual void Init() = 0;
 
