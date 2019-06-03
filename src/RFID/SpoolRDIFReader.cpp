@@ -45,7 +45,7 @@ void SpoolRDIF_Reader::Create(uint8_t channel)
 	}
 	return;
 }
-void SpoolRDIF_Reader::Task()
+void SpoolRDIF_Reader::Spin()
 {
 
 	for (PN532Handler *& r : reader)

@@ -430,7 +430,7 @@ void RepRap::Spin()
 
 	ticksInSpinState = 0;
 	spinningModule = modulerTagReader;
-	tagreaderwriter->Task();
+	tagreaderwriter->Spin();
 #endif
 
 
