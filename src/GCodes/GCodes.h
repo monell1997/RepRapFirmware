@@ -310,7 +310,7 @@ private:
 	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
 	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
 	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
-	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to configure SPI for RFID r/w
+	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);   // BCN3D method to configure SPI for RFID r/w
 	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
 	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
 	#endif

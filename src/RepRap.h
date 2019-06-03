@@ -26,7 +26,7 @@ Licence: GPL
 #include "MessageType.h"
 #include "RTOSIface/RTOSIface.h"
 #ifdef BCN3D_DEV
-#include <RFID/PN532Handler.h>
+#include <RFID/SpoolRDIFReader.h>
 #include "SpoolSupplier/SpoolSupplier.h"
 #include <Heating/Sensors/HdcSensor.h>
 #endif
@@ -103,7 +103,7 @@ public:
 	Scanner& GetScanner() const;
 	PrintMonitor& GetPrintMonitor() const;
 #ifdef BCN3D_DEV
-	PN532Handler& GetTagReaderWriter() const;
+	SpoolRDIF_Reader& GetTagReaderWriter() const;
 	SpoolSupplier& GetSpoolSupplier() const;
 	HdcSensorHardwareInterface& GetHdcSensorHardwareInterface() const;
 #endif
@@ -168,7 +168,7 @@ private:
 	Scanner* scanner;
  	PrintMonitor* printMonitor;
 #ifdef BCN3D_DEV
- 	PN532Handler* tagreaderwriter;
+ 	SpoolRDIF_Reader* tagreaderwriter;
  	SpoolSupplier* spoolsupplier;
  	HdcSensorHardwareInterface* hdcsensorhi;
 #endif
@@ -224,7 +224,7 @@ inline Roland& RepRap::GetRoland() const { return *roland; }
 inline Scanner& RepRap::GetScanner() const { return *scanner; }
 inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
 #ifdef BCN3D_DEV
-inline PN532Handler& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
+inline SpoolRDIF_Reader& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
 inline SpoolSupplier& RepRap::GetSpoolSupplier() const { return *spoolsupplier; }
 inline HdcSensorHardwareInterface& RepRap::GetHdcSensorHardwareInterface() const { return *hdcsensorhi; }
 #endif

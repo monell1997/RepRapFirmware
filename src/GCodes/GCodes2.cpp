@@ -4587,14 +4587,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 1061://Set edurne parameters
 		{
 			int32_t values[N_Spools];
+			uint32_t uvalues[N_Spools];
 			float temps_val[N_Spools];
 			size_t NumtoRecv = N_Spools;
 			if (gb.Seen('B'))
 			{
 
-				gb.GetIntArray(values, NumtoRecv, false);		// Spool id
+				gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
 				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Spool_id(i,(unsigned int)values[i]);
+					reprap.GetSpoolSupplier().Set_Spool_id(i,(uint32_t)uvalues[i]);
 				}
 			}else{
 				result = GCodeResult::badOrMissingParameter;
