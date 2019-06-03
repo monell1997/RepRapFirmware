@@ -187,7 +187,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	move = new Move();
 	heat = new Heat(*platform);
 #ifdef BCN3D_DEV
-	tagreaderwriter = new SpoolRDIF_Reader();
+	tagreaderwriter = new PN532Handler(0);
 	spoolsupplier = new SpoolSupplier();
 #endif
 #if SUPPORT_ROLAND
@@ -430,7 +430,7 @@ void RepRap::Spin()
 
 	ticksInSpinState = 0;
 	spinningModule = modulerTagReader;
-	tagreaderwriter->Task();
+	tagreaderwriter->Spin();
 #endif
 
 

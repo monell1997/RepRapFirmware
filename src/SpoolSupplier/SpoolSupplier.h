@@ -5,6 +5,7 @@
  *      Author: agarciamoreno
  */
 #include "RepRap.h"
+#include "RFID/PN532Handler.h"
 #include "RFID/RFIDdevicestatus.h"
 #ifndef SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
@@ -21,7 +22,6 @@ public:
 
 	uint8_t Get_Spool_Remaining(size_t idex);
 	void Set_Spool_Remaining(size_t idex, uint8_t rem);
-	void Set_Spool_Remaining(size_t idex, const uint8_t * data, const uint32_t numBytes);
 
 	float Get_Current_Humidity(size_t idex);
 	void Set_Current_Humidity(size_t idex, float current);
@@ -32,9 +32,8 @@ public:
 	float Get_Current_Temperature(size_t idex);
 	void Update_Current_Temperature(size_t idex, float temp);
 
-	uint32_t Get_Spool_id(size_t idex);
-	void Set_Spool_id(size_t idex, uint32_t id);
-	void Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes);
+	unsigned int Get_Spool_id(size_t idex);
+	void Set_Spool_id(size_t idex, unsigned int id);
 
 	void Set_Master_Status(bool status);
 
@@ -48,7 +47,7 @@ private:
 	float current_temperature[N_Spools];
 	float current_humidity[N_Spools];
 	uint8_t spool_remaining[N_Spools];
-	uint32_t spool_id[N_Spools];
+	unsigned int spool_id[N_Spools];
 	static Mutex SpoolSupplierMutex;
 
 	RFID_device_status RWrfid_s;
