@@ -20,8 +20,8 @@ uint8_t pn532ack[] = { 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00 };
 uint8_t pn532response_firmwarevers[] = { 0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03 };
 
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
- #define PN532DEBUG
- #define MIFAREDEBUG
+// #define PN532DEBUG
+// #define MIFAREDEBUG
 
 // If using Native Port on Arduino Zero or Due define as SerialUSB
 //#define PN532DEBUGPRINT Serial
@@ -90,6 +90,8 @@ void PN532Handler::Init() {
 	delayMicroseconds(1);
 	sspi_deselect_device(&device);
 	delayMicroseconds(1);
+
+	SAMConfig();
 
 	_RW_State = RW_State::none;
 	lastTime = millis();
@@ -1635,7 +1637,7 @@ void PN532Handler::ProcessStates() {
 		}
 		_RW_State = RW_State::waitready;
 		timeoutCount = 0;
-		timeoutWR = 1000;
+		timeoutWR = 100;
 		break;
 
 	case RW_State::waitready:
@@ -1665,8 +1667,7 @@ void PN532Handler::ProcessStates() {
 		}else{
 			_RW_State = RW_State::waitready2;
 			timeoutCount = 0;
-			timeoutWR = 2000;
-			//reprap.GetPlatform().MessageF(HttpMessage, "Step 1\n");
+			timeoutWR = 100;
 		}
 		break;
 	case RW_State::waitready2:
@@ -1675,14 +1676,11 @@ void PN532Handler::ProcessStates() {
 				lastTime = millis();
 				if(isready()){
 					_RW_State = RW_State::readdata;
-					reprap.GetPlatform().MessageF(HttpMessage, "Step 3\n");
 				}else{
 					if(timeoutWR > timeoutCount){
 						timeoutCount += 10;
 					}else{
-						reprap.GetPlatform().MessageF(HttpMessage, "Step 2\n");
 						RESET_LOOP;
-						//Timeout Message
 					}
 				}
 			}
