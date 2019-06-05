@@ -1575,7 +1575,9 @@ void PN532Handler::ProcessStates() {
 	static uint16_t loop_state = LOOP_PROCESS_READ_NONE;
 	uint8_t datapage[32] = {0};
 	//uint8_t success; // Flag to check if there was an error with the PN532
+#ifdef MIFAREDEBUG
 	uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 }; // Buffer to store the returned UID
+#endif
 	static uint8_t uidLength=0; // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
 	//uint8_t currentblock; // Counter to keep track of which block we're on
 	//bool authenticated = false; // Flag to indicate if the sector is authenticated
@@ -1593,7 +1595,7 @@ void PN532Handler::ProcessStates() {
 	switch(_RW_State){////////// 1º establish Connection with card - 2º Read Data from card (depents type) - 3º Write something(not implemented yet)
 
 	case RW_State::none:
-		if (now - lastTime >= 2000) {
+		if (now - lastTime >= 1000) {
 			lastTime = millis();
 			_RW_State = RW_State::writecommand;
 			loop_state = LOOP_PROCESS_GETUID;
@@ -1607,9 +1609,9 @@ void PN532Handler::ProcessStates() {
 					pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
 					pn532_packetbuffer[2] = PN532_MIFARE_ISO14443A;
 					writecommand(pn532_packetbuffer, 3);
-					//#ifdef MIFAREDEBUG
-					//reprap.GetPlatform().MessageF(HttpMessage, "Get ID Card %d\n", (int)device.csPin);
-					//#endif
+					#ifdef MIFAREDEBUG
+					reprap.GetPlatform().MessageF(HttpMessage, "Get ID Card %d\n", (int)device.csPin);
+					#endif
 				}
 				break;
 			case LOOP_PROCESS_READ_PAGE1:
@@ -1622,9 +1624,9 @@ void PN532Handler::ProcessStates() {
 						RESET_LOOP;
 					}
 
-				//#ifdef MIFAREDEBUG
+				#ifdef MIFAREDEBUG
 					reprap.GetPlatform().MessageF(HttpMessage, "Reading page ");reprap.GetPlatform().MessageF(HttpMessage, "%u\n",loop_state);
-				//#endif
+				#endif
 
 					/* Prepare the command */
 					pn532_packetbuffer[0] = PN532_COMMAND_INDATAEXCHANGE;
@@ -1728,16 +1730,16 @@ void PN532Handler::ProcessStates() {
 				reprap.GetPlatform().MessageF(HttpMessage, "UID:");
 			#endif
 				for (uint8_t i = 0; i < pn532_packetbuffer[12]; i++) {
-					uid[i] = pn532_packetbuffer[13 + i];
+					_uid[i] = pn532_packetbuffer[13 + i];
 			#ifdef MIFAREDEBUG
-					reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",uid[i]);
+					reprap.GetPlatform().MessageF(HttpMessage, " 0x"); reprap.GetPlatform().MessageF(HttpMessage, "%02x",_uid[i]);
 			#endif
 				}
 			#ifdef MIFAREDEBUG
 				reprap.GetPlatform().MessageF(HttpMessage, "\n");
 			#endif
 				// Display some basic information about the card
-				reprap.GetPlatform().MessageF(HttpMessage,
+/*				reprap.GetPlatform().MessageF(HttpMessage,
 						"Found an ISO14443A card\n");
 				reprap.GetPlatform().MessageF(HttpMessage, "  UID Length: %d",
 						uidLength);
@@ -1745,7 +1747,7 @@ void PN532Handler::ProcessStates() {
 				reprap.GetPlatform().MessageF(HttpMessage, "  UID Value: ");
 				PrintHex(uid, uidLength);
 				reprap.GetPlatform().MessageF(HttpMessage, "\n");
-
+*/
 				_RW_State = RW_State::writecommand;
 				loop_state = LOOP_PROCESS_READ_PAGE1;
 
@@ -1756,7 +1758,9 @@ void PN532Handler::ProcessStates() {
 		case LOOP_PROCESS_READ_PAGE2:
 			{
 				if(uidLength == 4){
+					#ifdef MIFAREDEBUG
 					reprap.GetPlatform().MessageF(HttpMessage, "Only Mifare Ultralight cards \n");
+					#endif
 					RESET_LOOP;
 
 				}else if(uidLength == 7){ // Mifare Ultralight
@@ -1784,10 +1788,10 @@ void PN532Handler::ProcessStates() {
 						}
 
 						/* Display data for debug if requested */
-					//#ifdef MIFAREDEBUG
+					#ifdef MIFAREDEBUG
 						reprap.GetPlatform().MessageF(HttpMessage, "Page ");reprap.GetPlatform().MessageF(HttpMessage, "%u",loop_state);reprap.GetPlatform().MessageF(HttpMessage, ":\n");
 						PN532Handler::PrintHex(datapage, 4);
-					//#endif
+					#endif
 				}
 				if(loop_state == LOOP_PROCESS_READ_PAGE1){
 					reprap.GetSpoolSupplier().Set_Spool_id(spool_index,datapage,4);

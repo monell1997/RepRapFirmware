@@ -32,7 +32,7 @@ SpoolSupplier::SpoolSupplier() {
 
 	// Set Default filament id
 
-		spool_id[i] = Default_id;
+		spool_id[i] = FilamentDictionary::defauld_filament;
 	}
 	master = false;
 	online = false;
@@ -70,18 +70,18 @@ void SpoolSupplier::Update_Current_Temperature(size_t idex, float temp){ // if t
 	if(!master)lastTime = millis();
 	current_temperature[idex] = temp;
 }
-uint32_t SpoolSupplier::Get_Spool_id(size_t idex){
+FilamentDictionary SpoolSupplier::Get_Spool_id(size_t idex){
 	return spool_id[idex];
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){
-	spool_id[idex] = id;
+	spool_id[idex] = (FilamentDictionary)id;
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){
 	uint32_t id = 0;
 	for(size_t i = 0; i< numBytes; i++){// should be 4
 		id |= (data[i]<<8*i);
 	}
-	spool_id[idex] = id;
+	spool_id[idex] = (FilamentDictionary)id;
 }
 void SpoolSupplier::Set_Master_Status(bool status){
 	master = status;
@@ -106,7 +106,7 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%lu",spool_id[i]);
+			r->catf("%lu",(uint32_t)spool_id[i]);
 		}
 		r->cat(" R");
 		for(i = 0; i<N_Spools;i++){
@@ -147,6 +147,32 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 	}
 
 }
+void SpoolSupplier::PrintStatus(const MessageType type){
+
+	MutexLocker lock(SpoolSupplierMutex);
+	OutputBuffer *r;
+	if (!OutputBuffer::Allocate(r))
+	{
+		return;
+	}
+	//JSON Format
+	if(!master && !online){
+		r->copy("Edurne Disconnected\n");
+		reprap.GetPlatform().Message(type, r);
+		return;
+	}
+	r->copy("Edurne Status: \n");
+	for(int i = 0; i<N_Spools;i++){
+		r->catf("Spool %d: -> ", i);
+		r->cat("Material ");
+		r->cat(FilamentDictionaryString(spool_id[i]));
+		r->cat(", ");
+		r->catf("Filament Remaining %u%%, ",spool_remaining[i]);
+		r->catf("Chamber Humidity %.1f%%, ",(double)current_humidity[i]);
+		r->catf("Chamber Temperature %.1f/%.1f \n",(double)current_temperature[i],(double)target_temperature[i]);
+	}
+	reprap.GetPlatform().Message(type, r);
+}
 void SpoolSupplier::PrintJSON(const MessageType type){
 
 	MutexLocker lock(SpoolSupplierMutex);
@@ -167,7 +193,7 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 	}
 	for(int i = 0; i<N_Spools;i++){
 
-		r->catf("[\"sl_id_%d\":\"%lu\"",i, spool_id[i]);
+		r->catf("[\"sl_id_%d\":\"%lu\"",i, (uint32_t)spool_id[i]);
 		r->catf(",\"sl_rem\":\"%u\"",spool_remaining[i]);
 		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
 		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);

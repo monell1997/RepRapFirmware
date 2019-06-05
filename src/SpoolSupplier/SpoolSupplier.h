@@ -6,6 +6,7 @@
  */
 #include "RepRap.h"
 #include "RFID/RFIDdevicestatus.h"
+#include "FilamentDictionary.h"
 #ifndef SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
@@ -13,7 +14,6 @@
 #define N_Spools		 	2
 #define Default_temp	 	-273.15
 #define Default_hum	 		0
-#define Default_id 			0
 class SpoolSupplier {
 public:
 	SpoolSupplier();
@@ -32,7 +32,7 @@ public:
 	float Get_Current_Temperature(size_t idex);
 	void Update_Current_Temperature(size_t idex, float temp);
 
-	uint32_t Get_Spool_id(size_t idex);
+	FilamentDictionary Get_Spool_id(size_t idex);
 	void Set_Spool_id(size_t idex, uint32_t id);
 	void Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes);
 
@@ -41,14 +41,14 @@ public:
 	void SendtoPrinter(const MessageType type);
 
 	void PrintJSON(const MessageType type);
-
+	void PrintStatus(const MessageType type);
 
 private:
 	float target_temperature[N_Spools];
 	float current_temperature[N_Spools];
 	float current_humidity[N_Spools];
 	uint8_t spool_remaining[N_Spools];
-	uint32_t spool_id[N_Spools];
+	FilamentDictionary spool_id[N_Spools];
 	static Mutex SpoolSupplierMutex;
 
 	RFID_device_status RWrfid_s;
@@ -56,6 +56,9 @@ private:
 	bool master; // true if Edurne
 	bool online; // true if Edurne
 	uint32_t lastTime;											// The last time our Spin() was called
+
+
+
 };
 
 

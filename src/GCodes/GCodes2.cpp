@@ -4571,6 +4571,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 1041:
 		reprap.GetSpoolSupplier().PrintJSON(ImmediateDirectUart0_duet2Message);
 		break;
+	case 1042:
+		reprap.GetSpoolSupplier().PrintStatus(HttpMessage);
+		break;
+
 	case 1060://enable Edurne MODE
 		{
 			bool seen = false;
@@ -4642,6 +4646,33 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 
 
+		}
+		break;
+
+	case 1080://load request to edurne
+		{
+			int spool = 0;
+			if(gb.Seen('S')){
+				spool = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			platform.MessageF(Uart0_duet2, "M705 C%d\n",spool);
+			platform.MessageF(Uart0_duet2, "M706 S1\n");
+		}
+		break;
+	case 1081://unload request to edurne
+		{
+			int spool = 0;
+			if(gb.Seen('S')){
+				spool = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			platform.MessageF(Uart0_duet2, "M705 C%d\n",spool);
+			platform.MessageF(Uart0_duet2, "M706 S0\n");
 		}
 		break;
 	#endif
