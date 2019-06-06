@@ -174,6 +174,11 @@ CoreKinematics::CoreKinematics(KinematicsType k) : ZLeadscrewKinematics(k), modi
 	case KinematicsType::markForged:
 		inverseMatrix(1, 0) = -1.0;
 		break;
+
+	case KinematicsType::bcn3d_sigma2:
+		inverseMatrix(1, 0) = -1.0;
+		inverseMatrix(1, 3) = 1.0;
+		break;
 	}
 
 	Recalc();
@@ -203,6 +208,9 @@ const char* CoreKinematics::GetName(bool forStatusReport) const
 
 	case KinematicsType::markForged:
 		return "markForged";
+
+	case KinematicsType::bcn3d_sigma2:
+		return "bcn3d_sigma2";
 
 	default:
 		return "unknown";
