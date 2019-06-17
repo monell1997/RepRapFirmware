@@ -4614,7 +4614,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 			}
-			if (gb.Seen('S'))
+			if (gb.Seen('H'))
 			{
 
 				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Current Humidity

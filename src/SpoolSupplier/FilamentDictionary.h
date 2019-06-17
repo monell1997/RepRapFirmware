@@ -15,11 +15,15 @@ enum class FilamentDictionary : uint32_t
 {
 	PLA = 3508469,
 	PVA = 77811945,
+	PET_G = 944651,
+	Nylon = 732141,
+	ABS = 1420656,
+	TPU = 35468,
 	defauld_filament = 0
 
 };
 
-const char* FilamentDictionaryString(FilamentDictionary err);
-
+const char* FilamentDictionaryString(FilamentDictionary name);
+const float FilamentDictionaryTargetTemp(FilamentDictionary name);
 
 #endif /* SRC_SPOOLSUPPLIER_FILAMENTDICTIONARY_H_ */
