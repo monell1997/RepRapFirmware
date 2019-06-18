@@ -12,9 +12,10 @@ enum class RFID_device_status
 		: uint8_t
 	{
 		online,
-	failedconnection,
+	connectionfailed,
 	disconnected,
 	lastPN532_status = disconnected
 };
 
+const char* RFID_reader_status(RFID_device_status name);
 #endif /* SRC_RFID_RFIDDEVICESTATUS_H_ */

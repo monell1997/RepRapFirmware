@@ -17,6 +17,7 @@
 #include "SharedSpi.h"
 #include "RFID/RFIDdevicestatus.h"
 
+#ifdef BCN3D_DEV
 #define PN532_PREAMBLE                      (0x00)
 #define PN532_STARTCODE1                    (0x00)
 #define PN532_STARTCODE2                    (0xFF)
@@ -169,37 +170,12 @@ public:
 	uint32_t getFirmwareVersion(void);
 	bool sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t timeout =
 			1000);
-	bool writeGPIO(uint8_t pinstate);
-	uint8_t readGPIO(void);
 	bool setPassiveActivationRetries(uint8_t maxRetries);
-
-	// ISO14443A functions
-	bool readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid,
-			uint8_t * uidLength, uint16_t timeout = 0); //timeout 0 means no timeout - will block forever.
-	bool inDataExchange(uint8_t * send, uint8_t sendLength, uint8_t * response,
-			uint8_t * responseLength);
-	bool inListPassiveTarget();
-
-	// Mifare Classic functions
-	bool mifareclassic_IsFirstBlock(uint32_t uiBlock);
-	bool mifareclassic_IsTrailerBlock(uint32_t uiBlock);
-	uint8_t mifareclassic_AuthenticateBlock(uint8_t * uid, uint8_t uidLen,
-			uint32_t blockNumber, uint8_t keyNumber, uint8_t * keyData);
-	uint8_t mifareclassic_ReadDataBlock(uint8_t blockNumber, uint8_t * data);
-	uint8_t mifareclassic_WriteDataBlock(uint8_t blockNumber, uint8_t * data);
-	uint8_t mifareclassic_FormatNDEF(void);
-	uint8_t mifareclassic_WriteNDEFURI(uint8_t sectorNumber,
-			uint8_t uriIdentifier, const char * url);
 
 	// Mifare Ultralight functions
 	uint8_t mifareultralight_ReadPage(uint8_t page, uint8_t * buffer);
 	uint8_t mifareultralight_WritePage(uint8_t page, uint8_t * data);
 
-	// NTAG2xx functions
-	uint8_t ntag2xx_ReadPage(uint8_t page, uint8_t * buffer);
-	uint8_t ntag2xx_WritePage(uint8_t page, uint8_t * data);
-	uint8_t ntag2xx_WriteNDEFURI(uint8_t uriIdentifier, char * url,
-			uint8_t dataLen);
 
 	// Help functions to display formatted text
 	static void PrintHex(const uint8_t * data, const uint32_t numBytes);
@@ -211,10 +187,9 @@ private:
 	sspi_device device;
 	uint8_t _uid[7];       // ISO14443A uid
 	uint8_t _uidLen;       // uid len
-	uint8_t _key[6];       // Mifare Classic key
 	uint8_t _inListedTag;  // Tg number of inlisted tag.
 
-	// Low level communication functions that handle both SPI and I2C.
+	// Low level communication functions that handle SPI.
 	uint8_t data_lsbfirst(uint8_t b);
 	void readdata(uint8_t* buff, uint8_t n);
 	void writecommand(uint8_t* cmd, uint8_t cmdlen);
@@ -234,4 +209,5 @@ private:
 	size_t spool_index;
 
 };
+#endif
 #endif /* SRC_RFID_PN532HANDLER_H_ */

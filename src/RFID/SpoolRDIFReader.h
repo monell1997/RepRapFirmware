@@ -6,16 +6,18 @@
  */
 
 
+
+
+#ifndef SRC_RFID_SPOOLRDIFREADER_H_
+#define SRC_RFID_SPOOLRDIFREADER_H_
+
 #include "RepRap.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
 #include "Tasks.h"
 #include "Wire.h"
 #include "SharedSpi.h"
-
-#ifndef SRC_RFID_SPOOLRDIFREADER_H_
-#define SRC_RFID_SPOOLRDIFREADER_H_
-
+#ifdef BCN3D_DEV
 
 class PN532Handler;
 class SpoolRDIF_Reader {
@@ -37,5 +39,5 @@ private:
 
 };
 
-
+#endif
 #endif /* SRC_RFID_SPOOLRDIFREADER_H_ */

@@ -14,7 +14,7 @@
 #include "Wire.h"
 #include "SharedSpi.h"
 
-
+#ifdef BCN3D_DEV
 // Constructor
 SpoolRDIF_Reader::SpoolRDIF_Reader() {
 
@@ -55,3 +55,4 @@ void SpoolRDIF_Reader::Spin()
 	//reader[0]->Spin();
 
 }
+#endif
