@@ -920,11 +920,22 @@ void PN532Handler::ProcessStates() {
 					#endif
 				}
 				if(loop_state == LOOP_PROCESS_READ_PAGE1){
-					reprap.GetSpoolSupplier().Set_Spool_id(spool_index,datapage,4);
+					if(reprap.GetSpoolSupplier().Get_Master_Status()){
+						reprap.GetSpoolSupplier().Set_Spool_id(spool_index,datapage,4); //if edurne
+					}else{
+						// to do
+					}
+
 					_RW_State = RW_State::writecommand;
 					loop_state = LOOP_PROCESS_READ_PAGE2;
 				}else if(loop_state == LOOP_PROCESS_READ_PAGE2){
-					reprap.GetSpoolSupplier().Set_Spool_Remaining(spool_index,datapage,1);
+					if(reprap.GetSpoolSupplier().Get_Master_Status()){
+						reprap.GetSpoolSupplier().Set_Spool_Remaining(spool_index,datapage,1); //if edurne
+					}else{
+
+					}
+
+
 					_RW_State = RW_State::none;
 					loop_state = LOOP_PROCESS_READ_NONE;
 				}

@@ -37,6 +37,7 @@ public:
 	void Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes);
 
 	void Set_Master_Status(bool status);
+	bool Get_Master_Status();
 
 	void SendtoPrinter(const MessageType type);
 
@@ -53,8 +54,8 @@ private:
 
 	RFID_device_status RWrfid_s;
 
-	bool master; // true if Edurne
-	bool online; // true if Edurne
+	bool master; // true whether is Edurne
+	bool online; // true if edurne is connected to the printer
 	uint32_t lastTime;											// The last time our Spin() was called
 
 

@@ -8,7 +8,7 @@
 #include "Heating/Heat.h"
 #include "SpoolSupplier/SpoolSupplier.h"
 #include "OutputMemory.h"
-constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 5000;		// interval spoolsupplier data refresh
+constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 2500;		// interval spoolsupplier data refresh between Printer and Edurne
 #ifdef BCN3D_DEV
 // Static data
 Mutex SpoolSupplier::SpoolSupplierMutex;
@@ -83,8 +83,11 @@ void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32
 	}
 	spool_id[idex] = (FilamentDictionary)id;
 }
-void SpoolSupplier::Set_Master_Status(bool status){
+void SpoolSupplier::Set_Master_Status(bool status){//True is edurne, false is a printer
 	master = status;
+}
+bool SpoolSupplier::Get_Master_Status(){//True is edurne, false is a printer
+	return master;
 }
 void SpoolSupplier::SendtoPrinter(const MessageType type){
 	MutexLocker lock(SpoolSupplierMutex);
@@ -216,13 +219,11 @@ void SpoolSupplier::Spin(void){
 
 				int8_t heater = (NumChamberHeaters > i) ? heat.GetChamberHeater(i) : -1;
 
-
-				target_temperature[i] = heat.GetActiveTemperature(heater);
-
-				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
-
-				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
+				target_temperature[i]  = heat.GetActiveTemperature(heater);
 				current_temperature[i] = heat.GetTemperature(heater);
+				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
+				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
+
 				}
 			}
 			SendtoPrinter(ImmediateDirectUart0_duet2Message);
@@ -238,6 +239,7 @@ void SpoolSupplier::Spin(void){
 			online = true;
 		}
 	}
+
 }
 
 #endif
