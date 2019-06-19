@@ -244,7 +244,10 @@ public:
 #if SUPPORT_WORKPLACE_COORDINATES
 	unsigned int GetWorkplaceCoordinateSystemNumber() const { return currentCoordinateSystem + 1; }
 #endif
-
+#ifdef BCN3D_DEV
+	void Exec_pushboth_Edurne();										//BCN3D method for pushing E printer and edurne together
+	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
+#endif
 protected:
 	DECLARE_OBJECT_MODEL
 
@@ -313,6 +316,7 @@ private:
 	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);   // BCN3D method to configure SPI for RFID r/w
 	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
 	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
+
 	#endif
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92

@@ -218,6 +218,20 @@ GCodeResult GCodes::Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& r
 
 	return GCodeResult::ok;
 }
+void GCodes::Exec_pushboth_Edurne() // Alejandro Garcia 19/06/2019
+{
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("pushboth.g");
+
+	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
+}
+void GCodes::Exec_pushunloadalone_Edurne() // Alejandro Garcia 19/06/2019
+{
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("pushunloadalone.g");
+
+	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
+}
 #endif
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)
