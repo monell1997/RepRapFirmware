@@ -22,10 +22,9 @@ enum class load_state
 		edurne_start,				// edurne start load
 		printerwaitingfrs, 		 	// printer detects that the filament arrives to the frs
 		edurneprinterpushboth,		// printer extruder start to push slowly and edurne reduce the speed at same as the printer a fix distance
-		ending
-		/*
+		ending,
 		edurnetorest,				// edurne has done her job, then go to rest, printer continues purging
-		printerpush					// printer push filament until ends
+		/*printerpush					// printer push filament until ends
 		*/
 };
 enum class unload_state
@@ -48,10 +47,13 @@ public:
 	void Spin();
 
 	FilamentDictionary ToolFilaments[MaxExtruders];
+	void SetBusyState(int busy);
+	void SetAckState(int ack);
+	void Request(uint8_t *rq);
 
 private:
 	uint32_t timeout_timer;
-
+	static Mutex FilamentHandlerMutex;
 	uint8_t status[2];				// status[0] = { 0 is nothing to do, 55 request a load, 155 request unload}
 									// status[1] = { up to N_spools} starting with 1
 	void loadfsm();

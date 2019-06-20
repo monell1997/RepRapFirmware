@@ -213,15 +213,22 @@ GCodeResult GCodes::Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& r
 	{
 		return GCodeResult::badOrMissingParameter;
 	}
-
+	platform.MessageF(Uart0_duet2, "M1093 S0\n"); // Printer ready
 	DoFileMacro(*fileGCode, value ? EDURNE_LOAD_G : EDURNE_UNLOAD_G, true, 98); // running a system macro
 
 	return GCodeResult::ok;
 }
-void GCodes::Exec_pushboth_Edurne() // Alejandro Garcia 19/06/2019
+void GCodes::Exec_pushboth_f_Edurne() // Alejandro Garcia 19/06/2019
 {
 	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("pushboth.g");
+	scratchString.printf("pushbothf.g"); // This gcode is executed by Edurne and Printer ant the same time
+
+	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
+}
+void GCodes::Exec_pushboth_b_Edurne() // Alejandro Garcia 19/06/2019
+{
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("pushbothb.g"); // This gcode is executed by Edurne and Printer ant the same time
 
 	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
 }

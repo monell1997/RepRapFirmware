@@ -63,9 +63,10 @@ enum Module : uint8_t
 	moduleDisplay = 15,
 	moduleSpoolSupplier = 16,
 	moduleHdcSensorhi = 17,
-	modulerTagReader = 18,
-	numModules = 19,				// make this one greater than the last module number
-	noModule = 19
+	moduleTagReader = 18,
+	moduleFilamentHandler = 19,
+	numModules = 20,				// make this one greater than the last module number
+	noModule = 20
 };
 
 extern const char * const moduleName[];
@@ -97,6 +98,7 @@ class Logger;
 class SpoolRDIF_Reader;
 class SpoolSupplier;
 class HdcSensorHardwareInterface;
+class FilamentHandler;
 #endif
 #if SUPPORT_IOBITS
 class PortControl;

@@ -245,7 +245,8 @@ public:
 	unsigned int GetWorkplaceCoordinateSystemNumber() const { return currentCoordinateSystem + 1; }
 #endif
 #ifdef BCN3D_DEV
-	void Exec_pushboth_Edurne();										//BCN3D method for pushing E printer and edurne together
+	void Exec_pushboth_b_Edurne();										//BCN3D method for pushing E printer and edurne together back
+	void Exec_pushboth_f_Edurne();										//BCN3D method for pushing E printer and edurne together forward
 	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
 #endif
 protected:

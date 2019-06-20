@@ -29,6 +29,7 @@ Licence: GPL
 #include <RFID/SpoolRDIFReader.h>
 #include "SpoolSupplier/SpoolSupplier.h"
 #include <Heating/Sensors/HdcSensor.h>
+#include <Tools/FilamentHandler.h>
 #endif
 enum class ResponseSource
 {
@@ -106,6 +107,7 @@ public:
 	SpoolRDIF_Reader& GetTagReaderWriter() const;
 	SpoolSupplier& GetSpoolSupplier() const;
 	HdcSensorHardwareInterface& GetHdcSensorHardwareInterface() const;
+	FilamentHandler& GetFilamentHandler() const;
 #endif
 #if SUPPORT_IOBITS
  	PortControl& GetPortControl() const;
@@ -171,6 +173,7 @@ private:
  	SpoolRDIF_Reader* tagreaderwriter;
  	SpoolSupplier* spoolsupplier;
  	HdcSensorHardwareInterface* hdcsensorhi;
+ 	FilamentHandler* filamenthandler;
 #endif
 #if SUPPORT_IOBITS
  	PortControl *portControl;
@@ -227,6 +230,7 @@ inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
 inline SpoolRDIF_Reader& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
 inline SpoolSupplier& RepRap::GetSpoolSupplier() const { return *spoolsupplier; }
 inline HdcSensorHardwareInterface& RepRap::GetHdcSensorHardwareInterface() const { return *hdcsensorhi; }
+inline FilamentHandler& RepRap::GetFilamentHandler() const { return *filamenthandler; }
 #endif
 #if SUPPORT_IOBITS
 inline PortControl& RepRap::GetPortControl() const { return *portControl; }

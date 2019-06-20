@@ -20,6 +20,7 @@
 #include "Tools/Tool.h"
 #include "FilamentMonitors/FilamentMonitor.h"
 #include "SpoolSupplier/SpoolSupplier.h"
+#include "Tools/FilamentHandler.h"
 #include "General/IP4String.h"
 #include "Movement/StepperDrivers/DriverMode.h"
 #include "Version.h"
@@ -4128,6 +4129,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				isChangingFilament = value;
 				platform.MessageF(GenericMessage, "Changing filament state: ");
+				if(!isChangingFilament){
+					platform.MessageF(Uart0_duet2, "M1093 S1\n");
+				}
 				platform.MessageF(GenericMessage, isChangingFilament?"On\n":"Off\n");
 			}else{
 				result = GCodeResult::badOrMissingParameter;
@@ -4658,8 +4662,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				result = GCodeResult::badOrMissingParameter;
 				break;
 			}
-			platform.MessageF(Uart0_duet2, "M705 C%d\n",spool);
-			platform.MessageF(Uart0_duet2, "M706 S1\n");
+			uint8_t rq[2]={0};
+			rq[0] = 55;
+			rq[1] = (uint8_t)spool;
+			reprap.GetFilamentHandler().Request(rq);
 		}
 		break;
 	case 1081://unload request to edurne
@@ -4671,8 +4677,63 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				result = GCodeResult::badOrMissingParameter;
 				break;
 			}
-			platform.MessageF(Uart0_duet2, "M705 C%d\n",spool);
-			platform.MessageF(Uart0_duet2, "M706 S0\n");
+
+			uint8_t rq[2]={0};
+			rq[0] = 155;
+			rq[1] = (uint8_t)spool;
+			reprap.GetFilamentHandler().Request(rq);
+		}
+		break;
+	case 1090://un/load request
+		{
+			int spool = 0;
+			int unload = 0;
+			if(gb.Seen('S')){
+				spool = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			if(gb.Seen('P')){
+				unload = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+
+
+			if(DoingFileMacro()){
+				platform.MessageF(Uart0_duet2, "M1093 S0\n"); // Printer ack
+			}else{
+				platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack
+			}
+		}
+		break;
+	case 1091://edurne must stop moving because printer FRS has been pressed
+		{
+			reprap.GetMove().Exit(); //Cancel all moves and reset
+			reprap.GetMove().Init();
+			//platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack
+		}
+		break;
+
+	case 1093:
+		{
+			int ack=0;
+			if(gb.Seen('S')){
+				ack = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			//reprap.GetPlatform().MessageF(HttpMessage, "recv ack\n");
+			reprap.GetFilamentHandler().SetAckState(ack);
+		}
+		break;
+	case 1094:// not busy
+		{
+			//reprap.GetPlatform().MessageF(HttpMessage, "recv busy\n");
+			reprap.GetFilamentHandler().SetBusyState(false);
 		}
 		break;
 	#endif

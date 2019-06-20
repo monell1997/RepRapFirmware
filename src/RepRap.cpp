@@ -13,7 +13,7 @@
 #include "Tools/Filament.h"
 #include "Tasks.h"
 #include "Version.h"
-
+#include <Tools/FilamentHandler.h>
 #ifdef DUET_NG
 # include "DueXn.h"
 #endif
@@ -189,6 +189,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 #ifdef BCN3D_DEV
 	tagreaderwriter = new SpoolRDIF_Reader();
 	spoolsupplier = new SpoolSupplier();
+	filamenthandler = new FilamentHandler();
 #endif
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
@@ -429,8 +430,12 @@ void RepRap::Spin()
 	hdcsensorhi->Spin();
 
 	ticksInSpinState = 0;
-	spinningModule = modulerTagReader;
+	spinningModule = moduleTagReader;
 	tagreaderwriter->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = moduleFilamentHandler;
+	filamenthandler->Spin();
 #endif
 
 
