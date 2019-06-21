@@ -4656,31 +4656,54 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 1080://load request to edurne
 		{
 			int spool = 0;
+			int extruder = 0;
 			if(gb.Seen('S')){
 				spool = (int)gb.GetIValue();
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 				break;
 			}
-			uint8_t rq[2]={0};
+			if(gb.Seen('E')){
+				extruder = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			if((size_t)extruder >= MaxExtruders){
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			uint8_t rq[3]={0};
 			rq[0] = 55;
 			rq[1] = (uint8_t)spool;
+			rq[2] = (uint8_t)extruder;
 			reprap.GetFilamentHandler().Request(rq);
 		}
 		break;
 	case 1081://unload request to edurne
 		{
 			int spool = 0;
+			int extruder = 0;
 			if(gb.Seen('S')){
 				spool = (int)gb.GetIValue();
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 				break;
 			}
-
-			uint8_t rq[2]={0};
+			if(gb.Seen('E')){
+				extruder = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			if((size_t)extruder >= MaxExtruders){
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			uint8_t rq[3]={0};
 			rq[0] = 155;
 			rq[1] = (uint8_t)spool;
+			rq[2] = (uint8_t)extruder;
 			reprap.GetFilamentHandler().Request(rq);
 		}
 		break;

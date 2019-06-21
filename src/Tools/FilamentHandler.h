@@ -50,17 +50,23 @@ public:
 	void SetBusyState(int busy);
 	void SetAckState(int ack);
 	void Request(uint8_t *rq);
+	void SetFilState(bool fil);
+	bool isChangingFilamenACK(uint8_t extruder);
+	void SetChangingFilamenACK(uint8_t extruder, uint8_t state);
 
 private:
 	uint32_t timeout_timer;
 	static Mutex FilamentHandlerMutex;
-	uint8_t status[2];				// status[0] = { 0 is nothing to do, 55 request a load, 155 request unload}
+	uint8_t status[3];				// status[0] = { 0 is nothing to do, 55 request a load, 155 request unload}
 									// status[1] = { up to N_spools} starting with 1
+									// status[2] = { Extruder destination
 	void loadfsm();
 	void unloadfsm();
+	uint8_t isChangingFilamentACK[MaxExtruders];
 	load_state loading_status;
 	unload_state unloading_status;
 	bool isACK;				//Is an ACK after request
+	bool isFil;				//Is Fil detected
 	bool isBusy;			//Is Busy
 };
 

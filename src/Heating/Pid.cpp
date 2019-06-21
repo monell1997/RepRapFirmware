@@ -256,7 +256,7 @@ void PID::Spin()
 				{
 #ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
-						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120);
+						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120.0);
 						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 					}
 #endif
@@ -301,10 +301,10 @@ void PID::Spin()
 					#ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
 						if((temperature - targetTemperature) > 0.2){
-							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0);
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0.0);
 							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 						}else if((temperature - targetTemperature) < -0.2){
-							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120);
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120.0);
 							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 						}
 					}
@@ -337,7 +337,7 @@ void PID::Spin()
 				{
 #ifdef BCN3D_DEV
 					if(reprap.GetHeat().IsChamberHeater(heater)){
-						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0);
+						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0.0);
 						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
 					}
 #endif

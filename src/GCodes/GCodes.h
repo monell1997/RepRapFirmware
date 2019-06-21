@@ -191,9 +191,6 @@ public:
 	bool IsResuming() const;
 	bool IsRunning() const;
 	bool IsReallyPrinting() const;										// Return true if we are printing from SD card and not pausing, paused or resuming
-#ifdef BCN3D_DEV
-	bool IsChangingFilament() const { return isChangingFilament; }		// Return true if we are changing filament
-#endif
 	bool IsSimulating() const { return simulationMode != 0; }
 	bool IsDoingToolChange() const { return doingToolChange; }
 	bool IsHeatingUp() const;											// Return true if the SD card print is waiting for a heater to reach temperature
@@ -611,10 +608,7 @@ private:
 	FilamentSensorStatus lastFilamentError;
 	size_t lastFilamentErrorExtruder;
 
-	// Changing Filament
-#ifdef BCN3D_DEV
-	bool isChangingFilament;
-#endif
+
 
 	// Laser
 	float laserMaxPower;
@@ -648,6 +642,9 @@ private:
 	bool cancelWait;							// Set true to cancel waiting
 	bool displayNoToolWarning;					// True if we need to display a 'no tool selected' warning
 	bool m501SeenInConfigFile;					// true if M501 was executed form config.g
+#ifdef BCN3D_DEV
+	bool isChangingFilament;
+#endif
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
 
 	// Standard macro filenames

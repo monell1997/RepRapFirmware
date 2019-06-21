@@ -73,15 +73,28 @@ void SpoolSupplier::Update_Current_Temperature(size_t idex, float temp){ // if t
 FilamentDictionary SpoolSupplier::Get_Spool_id(size_t idex){
 	return spool_id[idex];
 }
-void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){
+void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
 	spool_id[idex] = (FilamentDictionary)id;
 }
-void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){
+void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){//Auto from RFID tag, auto heat-up
 	uint32_t id = 0;
+	Heat& heat = reprap.GetHeat();
 	for(size_t i = 0; i< numBytes; i++){// should be 4
 		id |= (data[i]<<8*i);
 	}
+
+	if((FilamentDictionary)id != spool_id[idex]){
+
+		int8_t heater = (NumChamberHeaters > idex) ? heat.GetChamberHeater(idex) : -1;
+
+		heat.Activate(heater);
+		heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp((FilamentDictionary)id));
+
+	}
 	spool_id[idex] = (FilamentDictionary)id;
+
+
+
 }
 void SpoolSupplier::Set_Master_Status(bool status){//True is edurne, false is a printer
 	master = status;

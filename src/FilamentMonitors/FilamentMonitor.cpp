@@ -15,6 +15,7 @@
 #include "GCodes/GCodeBuffer.h"
 #include "Movement/Move.h"
 #include "PrintMonitor.h"
+#include "Tools/FilamentHandler.h"
 
 // Static data
 Mutex FilamentMonitor::filamentSensorsMutex;
@@ -177,7 +178,6 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 /*static*/ void FilamentMonitor::Spin()
 {
 	MutexLocker lock(filamentSensorsMutex);
-
 	// Filament sensors
 	for (size_t extruder = 0; extruder < MaxExtruders; ++extruder)
 	{
@@ -206,8 +206,9 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 				fromIsr = false;
 				isrMillis = 0;
 			}
+
 #ifdef BCN3D_DEV
-			if ((gCodes.IsReallyPrinting() && !gCodes.IsSimulating()) || gCodes.IsChangingFilament())
+			if ((gCodes.IsReallyPrinting() && !gCodes.IsSimulating()) || reprap.GetFilamentHandler().isChangingFilamenACK(extruder))
 #else
 			if (gCodes.IsReallyPrinting() && !gCodes.IsSimulating())
 #endif
@@ -225,14 +226,24 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 					{
 						gCodes.FilamentError(extruder, fstat);
 					}
+
+				}
 #ifdef BCN3D_DEV
-					if(abs(extrusionCommanded) > 0 && gCodes.IsChangingFilament()){
-						reprap.GetMove().Exit(); //Cancel all moves and reset
-						reprap.GetMove().Init();
+				else{
+
+					if(reprap.GetFilamentHandler().isChangingFilamenACK(extruder)){
+
+						reprap.GetPlatform().MessageF(HttpMessage, "FRS\n");
+						reprap.GetFilamentHandler().SetChangingFilamenACK(extruder, 0);
+						reprap.GetFilamentHandler().SetFilState(true);
+						/*reprap.GetMove().Exit(); //Cancel all moves and reset
+						reprap.GetMove().Init();*/
 
 					}
-#endif
+
 				}
+#endif
+
 			}
 			else
 			{
