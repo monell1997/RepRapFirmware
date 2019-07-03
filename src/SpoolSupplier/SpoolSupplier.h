@@ -7,6 +7,7 @@
 #include "RepRap.h"
 #include "RFID/RFIDdevicestatus.h"
 #include "FilamentDictionary.h"
+#include "FilamentMonitors/FilamentMonitor.h"
 #ifndef SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
@@ -14,6 +15,7 @@
 #define N_Spools		 	2
 #define Default_temp	 	-273.15
 #define Default_hum	 		0
+
 class SpoolSupplier {
 public:
 	SpoolSupplier();
@@ -35,6 +37,7 @@ public:
 	FilamentDictionary Get_Spool_id(size_t idex);
 	void Set_Spool_id(size_t idex, uint32_t id);
 	void Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes);
+	void Set_Spool_FRS(size_t idex, int frs);
 
 	void Set_Master_Status(bool status);
 	bool Get_Master_Status();
@@ -49,6 +52,7 @@ private:
 	float current_temperature[N_Spools];
 	float current_humidity[N_Spools];
 	uint8_t spool_remaining[N_Spools];
+	int spool_FRS[N_Spools];	//0 no fil , 1 is fil
 	FilamentDictionary spool_id[N_Spools];
 	static Mutex SpoolSupplierMutex;
 

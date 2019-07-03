@@ -4648,7 +4648,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 			}
+			if (gb.Seen('F'))
+			{
 
+				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Spool_FRS(i,(int)values[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
 
 		}
 		break;

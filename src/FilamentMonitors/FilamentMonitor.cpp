@@ -252,7 +252,47 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 		}
 	}
 }
+#ifdef BCN3D_DEV
+/*static*/ int FilamentMonitor::GetFilamentMonitorState(uint8_t extruder){
+	MutexLocker lock(filamentSensorsMutex);
+		// Filament sensors
+		if(extruder < MaxExtruders)
+		{
+			if (filamentSensors[extruder] != nullptr)
+			{
 
+				FilamentMonitor& fs = *filamentSensors[extruder];
+				GCodes& gCodes = reprap.GetGCodes();
+				bool isPrinting;
+				bool fromIsr;
+				int32_t extruderStepsCommanded;
+				uint32_t isrMillis;
+				cpu_irq_disable();
+				if (fs.haveIsrStepsCommanded)
+				{
+					extruderStepsCommanded = fs.isrExtruderStepsCommanded;
+					isPrinting = fs.isrWasPrinting;
+					isrMillis = fs.isrMillis;
+					fs.haveIsrStepsCommanded = false;
+					cpu_irq_enable();
+					fromIsr = true;
+				}
+				else
+				{
+					cpu_irq_enable();
+					extruderStepsCommanded = reprap.GetMove().GetAccumulatedExtrusion(extruder, isPrinting);		// get and clear the net extrusion commanded
+					fromIsr = false;
+					isrMillis = 0;
+				}
+				const float extrusionCommanded = (float)extruderStepsCommanded/reprap.GetPlatform().DriveStepsPerUnit(extruder + gCodes.GetTotalAxes());
+				FilamentSensorStatus fstat = fs.Check(isPrinting, fromIsr, isrMillis, extrusionCommanded);
+
+				return (int)fstat;
+			}
+		}
+		return 0;
+}
+#endif
 // Send diagnostics info
 /*static*/ void FilamentMonitor::Diagnostics(MessageType mtype)
 {

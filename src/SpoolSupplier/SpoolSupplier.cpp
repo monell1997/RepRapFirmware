@@ -8,14 +8,17 @@
 #include "Heating/Heat.h"
 #include "SpoolSupplier/SpoolSupplier.h"
 #include "OutputMemory.h"
+#include "FilamentMonitors/FilamentMonitor.h"
 constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 2500;		// interval spoolsupplier data refresh between Printer and Edurne
 #ifdef BCN3D_DEV
 // Static data
 Mutex SpoolSupplier::SpoolSupplierMutex;
 
 SpoolSupplier::SpoolSupplier() {
-	// Set Default target temp
+
 	for(int i = 0; i<N_Spools;i++){
+	// Set Default target temp
+
 		target_temperature[i] = 0;
 
 	// Set Default a default temp
@@ -33,6 +36,10 @@ SpoolSupplier::SpoolSupplier() {
 	// Set Default filament id
 
 		spool_id[i] = FilamentDictionary::defauld_filament;
+
+	// Set Default FRS value
+
+		spool_FRS[i] = 0;
 	}
 	master = false;
 	online = false;
@@ -75,6 +82,9 @@ FilamentDictionary SpoolSupplier::Get_Spool_id(size_t idex){
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
 	spool_id[idex] = (FilamentDictionary)id;
+}
+void SpoolSupplier::Set_Spool_FRS(size_t idex, int frs){//Manually
+	spool_FRS[idex] = frs;
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){//Auto from RFID tag, auto heat-up
 	uint32_t id = 0;
@@ -152,6 +162,13 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			r->catf("%.1f",(double)target_temperature[i]);
 		}
+		r->cat(" F");
+		for(i = 0; i<N_Spools;i++){
+
+			if(i >0){r->cat(":");}
+
+			r->catf("%d",spool_FRS[i]);
+		}
 		r->cat("\n");
 
 		reprap.GetPlatform().Message(type, r);
@@ -185,7 +202,8 @@ void SpoolSupplier::PrintStatus(const MessageType type){
 		r->cat(", ");
 		r->catf("Filament Remaining %u%%, ",spool_remaining[i]);
 		r->catf("Chamber Humidity %.1f%%, ",(double)current_humidity[i]);
-		r->catf("Chamber Temperature %.1f/%.1f \n",(double)current_temperature[i],(double)target_temperature[i]);
+		r->catf("Chamber Temperature %.1f/%.1f ",(double)current_temperature[i],(double)target_temperature[i]);
+		r->catf("FRS %d: \n", spool_FRS[i]);
 	}
 	reprap.GetPlatform().Message(type, r);
 }
@@ -213,7 +231,8 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 		r->catf(",\"sl_rem\":\"%u\"",spool_remaining[i]);
 		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
 		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);
-		r->catf(",\"t_t\":\"%.1f\"]",(double)target_temperature[i]);
+		r->catf(",\"t_t\":\"%.1f\"",(double)target_temperature[i]);
+		r->catf(",\"frs\":\"%d\"]",spool_FRS[i]);
 	}
 	r->cat("}\n");
 	reprap.GetPlatform().Message(type, r);
@@ -234,6 +253,8 @@ void SpoolSupplier::Spin(void){
 
 				target_temperature[i]  = heat.GetActiveTemperature(heater);
 				current_temperature[i] = heat.GetTemperature(heater);
+				//FilamentMonitor::InitStatic();
+				spool_FRS[i] = FilamentMonitor::GetFilamentMonitorState(i);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
 

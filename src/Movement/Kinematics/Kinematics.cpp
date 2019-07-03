@@ -153,6 +153,7 @@ AxesBitmap Kinematics::GetConnectedAxes(size_t axis) const
 	case KinematicsType::coreXYU:
 	case KinematicsType::coreXYUV:
 	case KinematicsType::markForged:
+	case KinematicsType::bcn3d_sigma2:
 		return new CoreKinematics(k);
 
 	case KinematicsType::linearDelta:

@@ -21,7 +21,7 @@
 
 #ifndef DATE
 
-# define DATE "2019-06-21b2"
+# define DATE "2019-06-26b2"
 
 #endif
 
