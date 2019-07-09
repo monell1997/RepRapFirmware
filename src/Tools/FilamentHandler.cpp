@@ -130,6 +130,7 @@ void FilamentHandler::loadfsm(){
 			break;
 		case load_state::edurnetorest:
 			reprap.GetPlatform().MessageF(HttpMessage, "Success, filament loaded\n");
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1095 S%d \n", int(status[1])); // Confirm Loading
 			loading_status = load_state::none;
 			break;
 		/*case load_state::printerpush:
@@ -200,6 +201,7 @@ void FilamentHandler::unloadfsm(){
 			break;
 		case unload_state::edurnetorest:
 			reprap.GetPlatform().MessageF(HttpMessage, "Success, filament unloaded\n");
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1096 S%d \n", int(status[1])); // Confirm Unloading
 			unloading_status = unload_state::none;
 			break;
 		default:

@@ -67,7 +67,7 @@ public:
 	static void Diagnostics(MessageType mtype);
 
 #ifdef BCN3D_DEV
-	static int GetFilamentMonitorState(uint8_t extruder);
+	static FilamentSensorStatus GetFilamentMonitorState(uint8_t extruder);
 #endif
 
 protected:

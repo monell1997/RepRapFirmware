@@ -42,6 +42,8 @@ public:
 	void Set_Master_Status(bool status);
 	bool Get_Master_Status();
 
+	void Set_Loaded_flag(size_t idex, uint8_t val);
+
 	void SendtoPrinter(const MessageType type);
 
 	void PrintJSON(const MessageType type);
@@ -52,7 +54,8 @@ private:
 	float current_temperature[N_Spools];
 	float current_humidity[N_Spools];
 	uint8_t spool_remaining[N_Spools];
-	int spool_FRS[N_Spools];	//0 no fil , 1 is fil
+	uint8_t spool_loaded[N_Spools];	// bobina cargada? 0 no , 1 si
+	FilamentSensorStatus spool_FRS[N_Spools];	//0 no fil , 1 is fil
 	FilamentDictionary spool_id[N_Spools];
 	static Mutex SpoolSupplierMutex;
 

@@ -253,7 +253,7 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 	}
 }
 #ifdef BCN3D_DEV
-/*static*/ int FilamentMonitor::GetFilamentMonitorState(uint8_t extruder){
+/*static*/ FilamentSensorStatus FilamentMonitor::GetFilamentMonitorState(uint8_t extruder){
 	MutexLocker lock(filamentSensorsMutex);
 		// Filament sensors
 		if(extruder < MaxExtruders)
@@ -287,10 +287,10 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 				const float extrusionCommanded = (float)extruderStepsCommanded/reprap.GetPlatform().DriveStepsPerUnit(extruder + gCodes.GetTotalAxes());
 				FilamentSensorStatus fstat = fs.Check(isPrinting, fromIsr, isrMillis, extrusionCommanded);
 
-				return (int)fstat;
+				return fstat;
 			}
 		}
-		return 0;
+		return FilamentSensorStatus::ok;
 }
 #endif
 // Send diagnostics info

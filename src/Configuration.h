@@ -122,7 +122,7 @@ constexpr int8_t DefaultE0Heater = 1;					// Index of the default first extruder
 constexpr size_t NumBedHeaters = 1;
 constexpr size_t NumChamberHeaters = 2;
 constexpr int8_t DefaultBedHeaters[NumBedHeaters] = { 0 };
-constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1 };
+constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1};
 
 constexpr int8_t DefaultE0Heater = 1;					// Index of the default first extruder heater, used only for the legacy status response
 

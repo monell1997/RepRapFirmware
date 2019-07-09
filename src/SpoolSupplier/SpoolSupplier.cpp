@@ -9,6 +9,12 @@
 #include "SpoolSupplier/SpoolSupplier.h"
 #include "OutputMemory.h"
 #include "FilamentMonitors/FilamentMonitor.h"
+
+#include "Platform.h"
+#include "GCodes/GCodeBuffer.h"
+#include "Movement/Move.h"
+#include "PrintMonitor.h"
+#include "Tools/FilamentHandler.h"
 constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 2500;		// interval spoolsupplier data refresh between Printer and Edurne
 #ifdef BCN3D_DEV
 // Static data
@@ -39,7 +45,11 @@ SpoolSupplier::SpoolSupplier() {
 
 	// Set Default FRS value
 
-		spool_FRS[i] = 0;
+		spool_FRS[i] = FilamentSensorStatus::ok;
+	// Set Default Spool State
+
+		spool_loaded[i] = 0;
+
 	}
 	master = false;
 	online = false;
@@ -84,7 +94,7 @@ void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
 	spool_id[idex] = (FilamentDictionary)id;
 }
 void SpoolSupplier::Set_Spool_FRS(size_t idex, int frs){//Manually
-	spool_FRS[idex] = frs;
+	spool_FRS[idex] = (FilamentSensorStatus)frs;
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){//Auto from RFID tag, auto heat-up
 	uint32_t id = 0;
@@ -111,6 +121,9 @@ void SpoolSupplier::Set_Master_Status(bool status){//True is edurne, false is a 
 }
 bool SpoolSupplier::Get_Master_Status(){//True is edurne, false is a printer
 	return master;
+}
+void SpoolSupplier::Set_Loaded_flag(size_t idex, uint8_t val){//True is edurne, false is a printer
+	spool_loaded[idex] = val;
 }
 void SpoolSupplier::SendtoPrinter(const MessageType type){
 	MutexLocker lock(SpoolSupplierMutex);
@@ -167,7 +180,14 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%d",spool_FRS[i]);
+			r->catf("%d",(int)spool_FRS[i]);
+		}
+		r->cat(" L");
+		for(i = 0; i<N_Spools;i++){
+
+			if(i >0){r->cat(":");}
+
+			r->catf("%d",(int)spool_loaded[i]);
 		}
 		r->cat("\n");
 
@@ -203,7 +223,11 @@ void SpoolSupplier::PrintStatus(const MessageType type){
 		r->catf("Filament Remaining %u%%, ",spool_remaining[i]);
 		r->catf("Chamber Humidity %.1f%%, ",(double)current_humidity[i]);
 		r->catf("Chamber Temperature %.1f/%.1f ",(double)current_temperature[i],(double)target_temperature[i]);
-		r->catf("FRS %d: \n", spool_FRS[i]);
+		//r->catf("FRS %d: \n", (int)spool_FRS[i]);
+		r->catf("Loaded: %d ,",(int)spool_loaded[i]);
+		r->catf("FRS: ");
+		r->cat(FilamentMonitor::GetErrorMessage(spool_FRS[i]));
+		r->catf(" \n");
 	}
 	reprap.GetPlatform().Message(type, r);
 }
@@ -232,13 +256,14 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
 		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);
 		r->catf(",\"t_t\":\"%.1f\"",(double)target_temperature[i]);
-		r->catf(",\"frs\":\"%d\"]",spool_FRS[i]);
+		r->catf(",\"frs\":\"%d\"]",(int)spool_FRS[i]);
 	}
 	r->cat("}\n");
 	reprap.GetPlatform().Message(type, r);
 }
 void SpoolSupplier::Spin(void){
 	MutexLocker lock(SpoolSupplierMutex);
+	GCodes& gCodes = reprap.GetGCodes();
 	if(master){
 		// See if it is time to spin the PIDs
 		const uint32_t now = millis();
@@ -272,8 +297,55 @@ void SpoolSupplier::Spin(void){
 		}else{
 			online = true;
 		}
+		if(online){
+
+
+			for(size_t i = 0; i<N_Spools;i++){
+				FilamentSensorStatus fstat = spool_FRS[i];
+				if (fstat != FilamentSensorStatus::ok)
+				{
+
+					//
+					if(spool_loaded[i] == 1){
+						if(gCodes.IsReallyPrinting()){
+							gCodes.FilamentError(i, fstat);
+						}
+						if(gCodes.IsPaused()){
+							uint8_t rq[3]={0};
+							rq[0] = 155;
+							rq[1] = (uint8_t)i;// spool
+							rq[2] = (uint8_t)(i<2?0:1);// extruder
+							reprap.GetFilamentHandler().Request(rq);
+							spool_loaded[i] = 0;
+							// request filament
+						}
+					}
+				}
+
+			}
+
+		}
 	}
 
 }
+
+/*
+// Check for and respond to filament errors
+void GCodes::CheckFilament()
+{
+	if (   lastFilamentError != FilamentSensorStatus::ok			// check for a filament error
+		&& IsReallyPrinting()
+		&& autoPauseGCode->IsCompletelyIdle()
+		&& LockMovement(*autoPauseGCode)							// need to lock movement before executing the pause macro
+	   )
+	{
+		String<MediumStringLength> filamentErrorString;
+		filamentErrorString.printf("Extruder %u reports %s", lastFilamentErrorExtruder, FilamentMonitor::GetErrorMessage(lastFilamentError));
+		DoPause(*autoPauseGCode, PauseReason::filament, filamentErrorString.c_str());
+		lastFilamentError = FilamentSensorStatus::ok;
+		platform.Message(LogMessage, filamentErrorString.c_str());
+	}
+}
+*/
 
 #endif

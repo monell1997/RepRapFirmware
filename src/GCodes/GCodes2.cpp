@@ -4658,6 +4658,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}else{
 				result = GCodeResult::badOrMissingParameter;
 			}
+			if (gb.Seen('L'))
+			{
+
+				gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
+				for(size_t i = 0; i<NumtoRecv;i++){
+					reprap.GetSpoolSupplier().Set_Loaded_flag(i,(uint8_t)uvalues[i]);
+				}
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
 
 		}
 		break;
@@ -4766,6 +4776,30 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			//reprap.GetPlatform().MessageF(HttpMessage, "recv busy\n");
 			reprap.GetFilamentHandler().SetBusyState(false);
+		}
+		break;
+	case 1095:// Confirm Loading
+		{
+			int spool = 0;
+			if(gb.Seen('S')){
+				spool = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 1);
+		}
+		break;
+	case 1096:// Confirm Unloading
+		{
+			int spool = 0;
+			if(gb.Seen('S')){
+				spool = (int)gb.GetIValue();
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+				break;
+			}
+			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
 		}
 		break;
 	#endif
