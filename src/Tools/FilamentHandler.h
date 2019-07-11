@@ -65,7 +65,7 @@ private:
 	uint8_t isChangingFilamentACK[MaxExtruders];
 	load_state loading_status;
 	unload_state unloading_status;
-	bool isACK;				//Is an ACK after request
+	int isACK;				//Is an ACK after request
 	bool isFil;				//Is Fil detected
 	bool isBusy;			//Is Busy
 };

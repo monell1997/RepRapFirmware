@@ -9,7 +9,7 @@
 #include "SpoolSupplier/SpoolSupplier.h"
 #include "OutputMemory.h"
 #include "FilamentMonitors/FilamentMonitor.h"
-
+#include "Tools/Tool.h"
 #include "Platform.h"
 #include "GCodes/GCodeBuffer.h"
 #include "Movement/Move.h"
@@ -50,6 +50,9 @@ SpoolSupplier::SpoolSupplier() {
 
 		spool_loaded[i] = 0;
 
+	// Set Default Change Fil Status
+
+		change_fil_status[i] = ChangeFilStatus::ok;
 	}
 	master = false;
 	online = false;
@@ -124,6 +127,20 @@ bool SpoolSupplier::Get_Master_Status(){//True is edurne, false is a printer
 }
 void SpoolSupplier::Set_Loaded_flag(size_t idex, uint8_t val){//True is edurne, false is a printer
 	spool_loaded[idex] = val;
+}
+bool SpoolSupplier::Get_Spool_Available(size_t idex){
+
+	if(spool_loaded[idex]){
+		return 0;				//this spool is in use
+	}
+	if(spool_FRS[idex]!=FilamentSensorStatus::ok){
+		return 0;				 //this spool isn't ok
+	}
+
+	return 1; // Spool available
+}
+void SpoolSupplier::Set_Change_Fil_Status(size_t idex, ChangeFilStatus status){
+	change_fil_status[idex] = status;
 }
 void SpoolSupplier::SendtoPrinter(const MessageType type){
 	MutexLocker lock(SpoolSupplierMutex);
@@ -299,28 +316,39 @@ void SpoolSupplier::Spin(void){
 		}
 		if(online){
 
+			const Tool * const currTool = reprap.GetCurrentTool();
+			int toolnumber = currTool->Number();
 
-			for(size_t i = 0; i<N_Spools;i++){
-				FilamentSensorStatus fstat = spool_FRS[i];
-				if (fstat != FilamentSensorStatus::ok)
-				{
+			if(toolnumber == 0)// tool LEFT
+			{
+				for(size_t i = 0; i<N_Spools;i++){
 
-					//
-					if(spool_loaded[i] == 1){
-						if(gCodes.IsReallyPrinting()){
-							gCodes.FilamentError(i, fstat);
+						FilamentSensorStatus fstat = spool_FRS[i];
+
+						if (fstat != FilamentSensorStatus::ok)
+						{
+
+							//
+							if(spool_loaded[i] == 1){
+								if(change_fil_status[i] == ChangeFilStatus::ok){
+									if(gCodes.IsReallyPrinting()){
+										gCodes.FilamentError(i, fstat);
+									}
+								/*	if(gCodes.IsPaused() && fstat != FilamentSensorStatus::ok ){ // Request unload filament due Edurne
+
+											uint8_t rq[3]={0};
+											rq[0] = 155;
+											rq[1] = (uint8_t)i;// spool
+											rq[2] = (uint8_t)(toolnumber);// extruder
+											reprap.GetFilamentHandler().Request(rq);
+									}*/
+								}
+							}
 						}
-						if(gCodes.IsPaused()){
-							uint8_t rq[3]={0};
-							rq[0] = 155;
-							rq[1] = (uint8_t)i;// spool
-							rq[2] = (uint8_t)(i<2?0:1);// extruder
-							reprap.GetFilamentHandler().Request(rq);
-							spool_loaded[i] = 0;
-							// request filament
-						}
-					}
+
+
 				}
+			}else if(toolnumber == 1){// not ready
 
 			}
 

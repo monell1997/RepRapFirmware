@@ -4743,11 +4743,19 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				break;
 			}
 
+			if(unload == 1){// load is requested
+				//check availability
+				if(!reprap.GetSpoolSupplier().Get_Spool_Available((size_t) spool)){
+					platform.MessageF(Uart0_duet2, "M1093 S3\n"); // Printer ack Filament not available
+				}
+
+			}
+
 
 			if(DoingFileMacro()){
-				platform.MessageF(Uart0_duet2, "M1093 S0\n"); // Printer ack
+				platform.MessageF(Uart0_duet2, "M1093 S2\n"); // Printer ack ready
 			}else{
-				platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack
+				platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack busy
 			}
 		}
 		break;
