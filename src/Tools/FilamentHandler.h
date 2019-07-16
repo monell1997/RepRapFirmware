@@ -11,6 +11,7 @@
 #include "RepRap.h"
 #include "SpoolSupplier/FilamentDictionary.h"
 
+#define QUEUE_LEN_RQ 2
 
 enum class load_state
 	: uint8_t
@@ -57,7 +58,8 @@ public:
 private:
 	uint32_t timeout_timer;
 	static Mutex FilamentHandlerMutex;
-	uint8_t status[3];				// status[0] = { 0 is nothing to do, 55 request a load, 155 request unload}
+	uint8_t queue_len;
+	uint8_t status[4][QUEUE_LEN_RQ];				// status[0] = { 0 is nothing to do, 55 request a load, 155 request unload}
 									// status[1] = { up to N_spools} starting with 1
 									// status[2] = { Extruder destination
 	void loadfsm();
@@ -68,6 +70,8 @@ private:
 	int isACK;				//Is an ACK after request
 	bool isFil;				//Is Fil detected
 	bool isBusy;			//Is Busy
+
+	uint32_t lastTime;											// The last time
 };
 
 

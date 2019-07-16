@@ -245,6 +245,7 @@ public:
 	void Exec_pushboth_b_Edurne();										//BCN3D method for pushing E printer and edurne together back
 	void Exec_pushboth_f_Edurne();										//BCN3D method for pushing E printer and edurne together forward
 	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
+	void autoresume_Edurne();											//Auto resume
 #endif
 protected:
 	DECLARE_OBJECT_MODEL
@@ -670,6 +671,7 @@ private:
 	static constexpr const char* EDURNE_UNLOAD_G = "unloadroutine.g";
 	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
 	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
+	static constexpr const char* RESUME_AUTO_G = "autoresume.g";
 	#endif
 
 #if HAS_SMART_DRIVERS

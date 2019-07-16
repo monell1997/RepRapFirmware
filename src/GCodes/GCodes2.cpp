@@ -4796,6 +4796,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				break;
 			}
 			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 1);
+			reprap.GetPlatform().MessageF(HttpMessage, "Recv load confirmation\n");
 		}
 		break;
 	case 1096:// Confirm Unloading
@@ -4807,6 +4808,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				result = GCodeResult::badOrMissingParameter;
 				break;
 			}
+			reprap.GetPlatform().MessageF(HttpMessage, "Recv unload confirmation\n");
 			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
 		}
 		break;

@@ -12,7 +12,7 @@
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
 
-#define N_Spools		 	2
+#define N_Spools		 	3
 #define Default_temp	 	-273.15
 #define Default_hum	 		0
 
@@ -70,7 +70,7 @@ private:
 	uint8_t spool_remaining[N_Spools];
 	uint8_t spool_loaded[N_Spools];	// bobina cargada? 0 no , 1 si
 
-	FilamentSensorStatus spool_FRS[N_Spools];	//0 no fil , 1 is fil
+	FilamentSensorStatus spool_FRS[N_Spools];	//1 no fil , 0 is fil
 
 	FilamentDictionary spool_id[N_Spools];
 

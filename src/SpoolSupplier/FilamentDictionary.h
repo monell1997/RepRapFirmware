@@ -13,10 +13,10 @@
 // Result codes returned by temperature sensor drivers
 enum class FilamentDictionary : uint32_t
 {
-	PLA = 3508469,
-	PVA = 77811945,
+	PLA = 3508469,//F5 88 35 00
+	PVA = 77811945,//E9 50 A3 04
 	PET_G = 944651,
-	Nylon = 11545581,
+	Nylon = 11545581,//ED 2B B0 00
 	ABS = 1420656,
 	TPU = 35468,
 	defauld_filament = 0

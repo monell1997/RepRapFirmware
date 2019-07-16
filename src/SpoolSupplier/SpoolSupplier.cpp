@@ -15,7 +15,11 @@
 #include "Movement/Move.h"
 #include "PrintMonitor.h"
 #include "Tools/FilamentHandler.h"
+
+
 constexpr uint32_t SpoolSupplierIntervalMillisRefresh = 2500;		// interval spoolsupplier data refresh between Printer and Edurne
+
+
 #ifdef BCN3D_DEV
 // Static data
 Mutex SpoolSupplier::SpoolSupplierMutex;
@@ -331,17 +335,51 @@ void SpoolSupplier::Spin(void){
 							//
 							if(spool_loaded[i] == 1){
 								if(change_fil_status[i] == ChangeFilStatus::ok){
-									if(gCodes.IsReallyPrinting()){
-										gCodes.FilamentError(i, fstat);
-									}
-								/*	if(gCodes.IsPaused() && fstat != FilamentSensorStatus::ok ){ // Request unload filament due Edurne
+									static bool flag_enter = true;
+									if(gCodes.IsReallyPrinting() && flag_enter){
 
-											uint8_t rq[3]={0};
-											rq[0] = 155;
-											rq[1] = (uint8_t)i;// spool
-											rq[2] = (uint8_t)(toolnumber);// extruder
-											reprap.GetFilamentHandler().Request(rq);
-									}*/
+										gCodes.FilamentError(i, fstat);
+										flag_enter = false;
+
+									}
+									if(gCodes.IsPaused() && fstat != FilamentSensorStatus::ok ){
+
+										// Request unload filament due Edurne
+										flag_enter = true;
+										uint8_t rq[4]={0};
+										rq[0] = 155;//unload
+										rq[1] = (uint8_t)i;// spool
+										rq[2] = (uint8_t)(toolnumber);// extruder
+										reprap.GetFilamentHandler().Request(rq);
+
+
+										// Search for a filament available
+										size_t j = 0;
+										while(j < N_Spools){
+
+											if(spool_id[i] == spool_id[j]){
+
+												if(spool_FRS[j] == FilamentSensorStatus::ok){
+
+													rq[0] = 55;//load
+													rq[1] = (uint8_t)j;// spool
+													rq[2] = (uint8_t)(toolnumber);// extruder
+													rq[3] = 100;// resume
+													reprap.GetFilamentHandler().Request(rq);
+													break;
+
+												}
+											}
+
+											j++;
+										}
+										if(j == N_Spools){
+											reprap.GetPlatform().MessageF(HttpMessage, "Only Unload Request, there is not spool available\n");
+										}
+
+
+
+									}
 								}
 							}
 						}
@@ -352,7 +390,11 @@ void SpoolSupplier::Spin(void){
 
 			}
 
+
 		}
+
+
+
 	}
 
 }

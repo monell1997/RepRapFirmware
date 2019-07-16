@@ -14,9 +14,15 @@
 #include "Heating/Heat.h"
 #include "Platform.h"
 #include "RepRap.h"
-
 // Static data
 Mutex FilamentHandler::FilamentHandlerMutex;
+
+constexpr uint32_t time_between_requests = 6000;		// time between request
+
+
+size_t current_pos_queue = 0;
+size_t write_pos_queue = 0;
+
 
 FilamentHandler::FilamentHandler() {
 	const size_t numExtruders = reprap.GetGCodes().GetNumExtruders();
@@ -29,6 +35,7 @@ FilamentHandler::FilamentHandler() {
 		isChangingFilamentACK[i] = 0;
 	}
 	timeout_timer = millis();
+	lastTime = millis();
 	isACK = false;
 	FilamentHandlerMutex.Create("FilamentHandler");
 }
@@ -59,7 +66,7 @@ void FilamentHandler::loadfsm(){
 		case load_state::edurne_request:
 			reprap.GetPlatform().MessageF(HttpMessage, "enqueuing load\n"); // ASK to edurne if it can do the process
 			isBusy = true;
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M1090 S%d P1\n",int(status[1])); // ASK to edurne if it can do the process
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1090 S%d P1\n",int(status[1][current_pos_queue])); // ASK to edurne if it can do the process
 			loading_status = load_state::edurne_wait;
 			isACK = false;
 			timeout_timer = millis();
@@ -71,13 +78,13 @@ void FilamentHandler::loadfsm(){
 						loading_status = load_state::edurne_accept;
 					}else if(isACK == 2){
 						reprap.GetPlatform().MessageF(HttpMessage, "Request denied, Edurne is busy\n");
-						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 						loading_status = load_state::none;
 						isACK = 0;
 
 					}else if(isACK == 3){
 						reprap.GetPlatform().MessageF(HttpMessage, "Request denied, Spool is not ready\n");
-						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 						loading_status = load_state::none;
 						isACK = 0;
 					}
@@ -90,10 +97,10 @@ void FilamentHandler::loadfsm(){
 			break;
 		case load_state::edurne_accept:
 			loading_status = load_state::edurne_start;
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M705 C%d\n",int(status[1]));
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M705 C%d\n",int(status[1][current_pos_queue]));
 			reprap.GetPlatform().MessageF(Uart0_duet2, "M706 S1\n"); // Request Filament push until it receives a stop
 			isFil = false;
-			SetChangingFilamenACK(status[2], 1);
+			SetChangingFilamenACK(status[2][current_pos_queue], 1);
 			isACK = 0;
 			timeout_timer = millis();
 			break;
@@ -106,7 +113,7 @@ void FilamentHandler::loadfsm(){
 					}
 				}else{
 					reprap.GetPlatform().MessageF(HttpMessage, "ACK confirmation not received from edurne, Abort\n"); // retry fil push
-					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 					loading_status = load_state::none;
 					//loading_status = load_state::edurne_accept;
 					//isACK = false;
@@ -128,7 +135,7 @@ void FilamentHandler::loadfsm(){
 					}
 				}else{
 					reprap.GetPlatform().MessageF(HttpMessage, "ACK confirmation not received from edurne, Abort\n"); // S spool and P load
-					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 					loading_status = load_state::none;
 				}
 			}
@@ -143,18 +150,26 @@ void FilamentHandler::loadfsm(){
 			break;
 		case load_state::edurnetorest:
 			reprap.GetPlatform().MessageF(HttpMessage, "Success, filament loaded\n");
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M1095 S%d \n", int(status[1])); // Confirm Loading
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1095 S%d \n", int(status[1][current_pos_queue])); // Confirm Loading
 			loading_status = load_state::none;
 
-			reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::ok);
+			reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::ok);
+
+			if(status[3][current_pos_queue] == 100){//resume after request pls
+				reprap.GetGCodes().autoresume_Edurne();
+				status[3][current_pos_queue] = 0;
+			}
 
 			break;
 		/*case load_state::printerpush:
 			break;
 			*/
 		default:
-			status[0] = 0;
+			status[0][current_pos_queue] = 0;
 			isBusy = false;
+			queue_len = (queue_len-1);
+			current_pos_queue = (current_pos_queue + 1)%QUEUE_LEN_RQ;
+			lastTime = millis();
 			break;
 	}
 
@@ -164,7 +179,7 @@ void FilamentHandler::unloadfsm(){
 	switch(unloading_status){
 		case unload_state::edurne_request:
 			reprap.GetPlatform().MessageF(HttpMessage, "enqueuing unload\n"); // ASK to edurne if it can do the process
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M1090 S%d P0\n",int(status[1])); // ASK to edurne if it can do the process
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1090 S%d P0\n",int(status[1][current_pos_queue])); // ASK to edurne if it can do the process
 			unloading_status = unload_state::edurne_wait;
 			isACK = 0;
 			timeout_timer = millis();
@@ -176,13 +191,13 @@ void FilamentHandler::unloadfsm(){
 						unloading_status = unload_state::edurne_accept;
 					}else if(isACK == 2){
 						reprap.GetPlatform().MessageF(HttpMessage, "Request denied, Edurne is busy\n");
-						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 						unloading_status = unload_state::none;
 						isACK = 0;
 
 					}else if(isACK == 3){
 						reprap.GetPlatform().MessageF(HttpMessage, "Request denied, Spool is not ready\n");
-						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+						reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 						unloading_status = unload_state::none;
 						isACK = 0;
 					}
@@ -209,7 +224,7 @@ void FilamentHandler::unloadfsm(){
 		case unload_state::printer_sendtoedurne_end:
 			//reprap.GetPlatform().MessageF(HttpMessage, "printer_sendtoedurne_end\n");
 			unloading_status = unload_state::edurnewaitingfrs;
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M705 C%d\n",int(status[1]));
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M705 C%d\n",int(status[1][current_pos_queue]));
 			reprap.GetPlatform().MessageF(Uart0_duet2, "M706 S0\n"); // Request Filament push until it receives a stop // Request Filament push until it receives a stop
 			isACK = 0;
 			timeout_timer = millis();
@@ -222,7 +237,7 @@ void FilamentHandler::unloadfsm(){
 					}
 				}else{
 					reprap.GetPlatform().MessageF(HttpMessage, "ACK confirmation not received from edurne, Abort\n"); // timeout is equal to not ready or yet
-					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::failed);
+					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
 					unloading_status = unload_state::none;
 					isACK = 0;
 				}
@@ -230,48 +245,73 @@ void FilamentHandler::unloadfsm(){
 			break;
 		case unload_state::edurnetorest:
 			reprap.GetPlatform().MessageF(HttpMessage, "Success, filament unloaded\n");
-			reprap.GetPlatform().MessageF(Uart0_duet2, "M1096 S%d \n", int(status[1])); // Confirm Unloading
-			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)status[1], 0);// Immediate update
-			reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::ok);
+			reprap.GetPlatform().MessageF(Uart0_duet2, "M1096 S%d \n", int(status[1][current_pos_queue])); // Confirm Unloading
+			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)status[1][current_pos_queue], 0);// Immediate update
+			reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::ok);
 			unloading_status = unload_state::none;
 			break;
-		default:
-			status[0] = 0;
+		default://ending
+			status[0][current_pos_queue] = 0;
 			isBusy = false;
+			queue_len = (queue_len-1);
+			current_pos_queue = (current_pos_queue + 1)%QUEUE_LEN_RQ;
+			lastTime = millis();
 			break;
 	}
 
 }
 void FilamentHandler::Request(uint8_t *rq){
 
-	status[0] = rq[0];//process
-	status[1] = rq[1];//spool requested
-	status[2] = rq[2];//extruder destination
-	if(status[0]==55){
-		loading_status = load_state::edurne_request;
-	}else if(status[0]==155){
-		unloading_status = unload_state::edurne_request;
+	if(queue_len<QUEUE_LEN_RQ){
+
+		status[0][write_pos_queue] = rq[0];//process
+		status[1][write_pos_queue] = rq[1];//spool requested
+		status[2][write_pos_queue] = rq[2];//extruder destination
+		status[3][write_pos_queue] = rq[3];//resume print_after success flag
+		if(status[0][write_pos_queue]==55){
+			loading_status = load_state::edurne_request;
+			reprap.GetPlatform().MessageF(HttpMessage, "recv load request\n");
+		}else if(status[0][write_pos_queue]==155){
+			unloading_status = unload_state::edurne_request;
+			reprap.GetPlatform().MessageF(HttpMessage, "recv unload request\n");
+		}
+		reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) rq[1], ChangeFilStatus::requested);
+
+
+		write_pos_queue = (write_pos_queue + 1)%QUEUE_LEN_RQ;
+		queue_len += 1;
+	}else{
+		reprap.GetPlatform().MessageF(HttpMessage, "queue buffer is full \n");
 	}
-	reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1], ChangeFilStatus::requested);
-	reprap.GetPlatform().MessageF(HttpMessage, "recv request\n");
+
+
 }
 void FilamentHandler::Spin(){
 	MutexLocker lock(FilamentHandlerMutex);
 	if(!reprap.GetSpoolSupplier().Get_Master_Status()){//printer mode
-		switch(status[0]){ // process request
-			case 55: //go load
-				loadfsm();
-				break;
-			case 155: //go unload
-				unloadfsm();
-				break;
-			default:
-				break;
+
+		if(queue_len > 0){
+			const uint32_t now = millis();
+			if (now - lastTime >= time_between_requests)
+			{
+				switch(status[0][current_pos_queue]){ // process request
+					case 55: //go load
+						loadfsm();
+						break;
+					case 155: //go unload
+						unloadfsm();
+						break;
+					default:
+						break;
+				}
+			}
+
 		}
 	}
 
 
 }
 
-
+//buflen = (buflen-1);
+//bufindr = (bufindr + 1)%BUFSIZE;
 

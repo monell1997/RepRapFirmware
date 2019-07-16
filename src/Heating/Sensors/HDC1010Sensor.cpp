@@ -143,10 +143,14 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 				size_t index = 0;
 				if(N_Spools <= Maxi2cTempSensors){
 					if(N_Spools != Maxi2cTempSensors){
-						if((addr-64) == 0){
+						if((addr-64) == 0){//0
 							index = 0;
-						}else{
+						}else if(addr-64 == 3){//1
 							index = 1;
+						}else if(addr-64 == 2){//2
+							index = 2;
+						}else if(addr-64 == 1){//3
+							index = 3;
 						}
 						reprap.GetSpoolSupplier().Set_Current_Humidity(index,lastHumidity);
 					}

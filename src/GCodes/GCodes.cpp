@@ -1957,7 +1957,6 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg)
 
 	gb.SetState((reason == PauseReason::filamentChange) ? GCodeState::filamentChangePause1 : GCodeState::pausing1);
 	isPaused = true;
-
 	if (msg != nullptr)
 	{
 		platform.SendAlert(GenericMessage, msg, "Printing paused", 1, 0.0, 0);
