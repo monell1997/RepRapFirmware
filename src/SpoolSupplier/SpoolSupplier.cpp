@@ -98,7 +98,17 @@ FilamentDictionary SpoolSupplier::Get_Spool_id(size_t idex){
 	return spool_id[idex];
 }
 void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
+	Heat& heat = reprap.GetHeat();
+	if((FilamentDictionary)id != spool_id[idex]){
+
+		int8_t heater = (NumChamberHeaters > idex) ? heat.GetChamberHeater(idex) : -1;
+
+		heat.Activate(heater);
+		heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp((FilamentDictionary)id));
+
+	}
 	spool_id[idex] = (FilamentDictionary)id;
+
 }
 void SpoolSupplier::Set_Spool_FRS(size_t idex, int frs){//Manually
 	spool_FRS[idex] = (FilamentSensorStatus)frs;
@@ -119,7 +129,6 @@ void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32
 
 	}
 	spool_id[idex] = (FilamentDictionary)id;
-
 
 
 }
@@ -303,6 +312,14 @@ void SpoolSupplier::Spin(void){
 				spool_FRS[i] = FilamentMonitor::GetFilamentMonitorState(i);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
+
+				if(spool_FRS[i] != FilamentSensorStatus::ok){
+					heat.SetActiveTemperature(heater, 0.0);// apagar
+				}else{
+					heat.Activate(heater);
+					heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp(spool_id[i]));
+				}
+
 
 				}
 			}

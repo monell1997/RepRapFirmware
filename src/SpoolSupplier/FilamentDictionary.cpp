@@ -30,7 +30,7 @@ const float FilamentDictionaryTargetTemp(FilamentDictionary name)
 	case FilamentDictionary::Nylon:					return 60.0;
 	case FilamentDictionary::ABS:					return 50.0;
 	case FilamentDictionary::TPU:					return 58.0;
-	default:										return 35.0;
+	default:										return 0.0;
 	}
 }
 

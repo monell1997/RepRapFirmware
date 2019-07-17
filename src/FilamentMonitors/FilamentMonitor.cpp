@@ -217,7 +217,18 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 				const FilamentSensorStatus fstat = fs.Check(isPrinting, fromIsr, isrMillis, extrusionCommanded);
 				if (fstat != FilamentSensorStatus::ok)
 				{
-
+#ifdef BCN3D_DEV
+					if(!reprap.GetFilamentHandler().isChangingFilamenACK(extruder)){
+						if (reprap.Debug(moduleFilamentSensors))
+						{
+							debugPrintf("Filament error: extruder %u reports %s\n", extruder, FilamentMonitor::GetErrorMessage(fstat));
+						}
+						else
+						{
+							gCodes.FilamentError(extruder, fstat);
+						}
+					}
+#else
 					if (reprap.Debug(moduleFilamentSensors))
 					{
 						debugPrintf("Filament error: extruder %u reports %s\n", extruder, FilamentMonitor::GetErrorMessage(fstat));
@@ -226,7 +237,7 @@ bool FilamentMonitor::ConfigurePin(GCodeBuffer& gb, const StringRef& reply, Inte
 					{
 						gCodes.FilamentError(extruder, fstat);
 					}
-
+#endif
 				}
 #ifdef BCN3D_DEV
 				else{

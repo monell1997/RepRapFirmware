@@ -231,7 +231,7 @@ void FilamentHandler::unloadfsm(){
 			break;
 		case unload_state::edurnewaitingfrs:
 			{
-				if(millis() < timeout_timer + 40000){
+				if(millis() < timeout_timer + 80000){
 					if(isACK == 1){
 						unloading_status = unload_state::edurnetorest;
 					}
