@@ -4812,6 +4812,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
 		}
 		break;
+	case 1097:// Send Ack
+		{
+			platform.MessageF(Uart0_duet2, "M1093 S1\n");
+		}
+		break;
 	#endif
 	default:
 

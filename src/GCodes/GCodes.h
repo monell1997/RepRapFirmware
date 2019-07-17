@@ -245,6 +245,7 @@ public:
 	void Exec_pushboth_b_Edurne();										//BCN3D method for pushing E printer and edurne together back
 	void Exec_pushboth_f_Edurne();										//BCN3D method for pushing E printer and edurne together forward
 	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
+	void Exec_unloadsync_Edurne();										//BCN3D unloadsync
 	void autoresume_Edurne();											//Auto resume
 #endif
 protected:

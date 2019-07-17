@@ -223,12 +223,31 @@ void FilamentHandler::unloadfsm(){
 			break;
 		case unload_state::printer_sendtoedurne_end:
 			//reprap.GetPlatform().MessageF(HttpMessage, "printer_sendtoedurne_end\n");
-			unloading_status = unload_state::edurnewaitingfrs;
+			unloading_status = unload_state::edurneprinterpushboth;
 			reprap.GetPlatform().MessageF(Uart0_duet2, "M705 C%d\n",int(status[1][current_pos_queue]));
 			reprap.GetPlatform().MessageF(Uart0_duet2, "M706 S0\n"); // Request Filament push until it receives a stop // Request Filament push until it receives a stop
 			isACK = 0;
 			timeout_timer = millis();
 			break;
+
+		case unload_state::edurneprinterpushboth:
+			{
+				if(millis() < timeout_timer + 3000){
+					if(isACK){//edurne stops
+						reprap.GetGCodes().Exec_unloadsync_Edurne();
+						timeout_timer = millis();
+						unloading_status = unload_state::edurnewaitingfrs;
+						isACK = 0;
+					}
+				}else{
+					reprap.GetPlatform().MessageF(HttpMessage, "ACK confirmation not received from edurne, Abort\n"); // S spool and P load
+					reprap.GetSpoolSupplier().Set_Change_Fil_Status((size_t) status[1][current_pos_queue], ChangeFilStatus::failed);
+					unloading_status = unload_state::none;
+					isACK = 0;
+				}
+			}
+			break;
+
 		case unload_state::edurnewaitingfrs:
 			{
 				if(millis() < timeout_timer + 80000){

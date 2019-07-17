@@ -232,6 +232,13 @@ void GCodes::Exec_pushboth_b_Edurne() // Alejandro Garcia 19/06/2019
 
 	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98); // running a system macro
 }
+void GCodes::Exec_unloadsync_Edurne() // Alejandro Garcia 19/06/2019
+{
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("unloadsync.g"); // This gcode is executed by Edurne and Printer ant the same time
+
+	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98); // running a system macro
+}
 void GCodes::Exec_pushunloadalone_Edurne() // Alejandro Garcia 19/06/2019
 {
 	String<ShortScratchStringLength> scratchString;
