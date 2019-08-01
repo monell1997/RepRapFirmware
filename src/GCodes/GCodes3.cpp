@@ -41,7 +41,7 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 	bool seenT = false;
 	if (gb.Seen('T'))
 	{
-		unsigned int tp = gb.GetUIValue();
+		const unsigned int tp = gb.GetUIValue();
 		if (tp == 0 || tp >= (unsigned int)ZProbeType::numTypes)
 		{
 			reply.copy("Invalid Z probe type");
@@ -95,166 +95,34 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 		}
 		platform.SetZProbeParameters(probeType, params);
 	}
-	else if (seenT)
-	{
-		// Don't bother printing temperature coefficient and calibration temperature because we will probably remove them soon
-		reply.printf("Threshold %d, trigger height %.2f, offsets X%.1f Y%.1f", params.adcValue, (double)params.triggerHeight, (double)params.xOffset, (double)params.yOffset);
-	}
 	else
 	{
-		const int v0 = platform.GetZProbeReading();
-		int v1, v2;
-		switch (platform.GetZProbeSecondaryValues(v1, v2))
+		if (seenT)
 		{
-		case 1:
-			reply.printf("%d (%d)", v0, v1);
-			break;
-		case 2:
-			reply.printf("%d (%d, %d)", v0, v1, v2);
-			break;
-		default:
-			reply.printf("%d", v0);
-			break;
+			reply.printf("Probe type %u:", (unsigned int)probeType);
 		}
+		else
+		{
+			const int v0 = platform.GetZProbeReading();
+			int v1, v2;
+			switch (platform.GetZProbeSecondaryValues(v1, v2))
+			{
+			case 1:
+				reply.printf("Current reading %d (%d)", v0, v1);
+				break;
+			case 2:
+				reply.printf("Current reading %d (%d, %d)", v0, v1, v2);
+				break;
+			default:
+				reply.printf("Current reading %d", v0);
+				break;
+			}
+		}
+		reply.catf(", threshold %d, trigger height %.2f, offsets X%.1f Y%.1f", params.adcValue, (double)params.triggerHeight, (double)params.xOffset, (double)params.yOffset);
 	}
 	return GCodeResult::ok;
 }
-#ifdef BCN3D_DEV
-//Deal with G33
-GCodeResult GCodes::SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
-{
 
-	ZProbeType probeType;
-
-	probeType = platform.GetZProbeType();
-
-	ZProbe params = platform.GetZProbeParameters(probeType);
-
-	params.triggerHeight = params.triggerHeight - currentUserPosition[Z_AXIS];
-	platform.SetZProbeParameters(probeType, params);
-	reply.printf("The new trigger height is %.2f",(double)params.triggerHeight);
-
-	return GCodeResult::ok;
-
-}
-//Deal with G34 X Y
-GCodeResult GCodes::FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 06/02/2019
-{
-	uint8_t tool = 0;
-
-	xyz_Bcn3dCalib_Samples_Count = 0;
-	if (gb.Seen(axisLetters[X_AXIS]))
-	{
-		tool = X_AXIS;
-		platform.MessageF(GenericMessage, "Go X calib \n");
-
-	}else if(gb.Seen(axisLetters[Y_AXIS])){
-		tool = Y_AXIS;
-		platform.MessageF(GenericMessage, "Go Y calib \n");
-	}else{
-		reply.copy("Not X or Y axes has been selected");
-		return GCodeResult::error;
-	}
-
-
-	/*
-	Tool *tool_1;
-
-	tool_1 = reprap.GetTool(1);
-
-	tool_1->SetOffset(U_AXIS, tool_1->GetOffset(U_AXIS), gb.MachineState().runningM501);
-	*/
-
-
-	if(CheckEnoughAxesHomed(0x07)){
-		reply.copy("Not enough axes homed");
-		return GCodeResult::error;
-	}
-
-	//Step 1 Calculate LEFT AXIS POSITION of CALIB-OBJECT
-
-	DoFileMacro(*fileGCode, tool == X_AXIS ? X_BCN3D_CALIB_G : Y_BCN3D_CALIB_G, true, 98); // running a system macro
-
-	return GCodeResult::ok;
-
-}
-//Deal with G34 S
-GCodeResult GCodes::SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval) // Alejandro Garcia 20/02/2019
-{
-	Tool *tool_1;
-
-	tool_1 = reprap.GetTool(1);
-
-	tool_1->SetOffset(axis, (tool_1->GetOffset(axis) + offsetval), gb.MachineState().runningM501);
-
-	return GCodeResult::ok;
-}
-GCodeResult GCodes::Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 15/05/2019
-{
-	int32_t spool_value = 0;
-	if (gb.Seen('C'))
-	{
-		spool_value = gb.GetIValue();
-	}else return GCodeResult::badOrMissingParameter;
-
-	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("spoolprep%d.g", (int)spool_value);
-
-	DoFileMacro(*fileGCode, scratchString.c_str(), true, 98); // running a system macro
-
-	return GCodeResult::ok;
-}
-GCodeResult GCodes::Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply) // Alejandro Garcia 15/05/2019
-{
-	bool seen = false;
-	bool value = false;
-	gb.TryGetBValue('S', value, seen);
-	if (!seen)
-	{
-		return GCodeResult::badOrMissingParameter;
-	}
-	platform.MessageF(Uart0_duet2, "M1093 S0\n"); // Printer ready
-	DoFileMacro(*fileGCode, value ? EDURNE_LOAD_G : EDURNE_UNLOAD_G, true, 98); // running a system macro
-
-	return GCodeResult::ok;
-}
-void GCodes::Exec_pushboth_f_Edurne() // Alejandro Garcia 19/06/2019
-{
-	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("pushbothf.g"); // This gcode is executed by Edurne and Printer ant the same time
-
-	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98); // running a system macro
-}
-void GCodes::Exec_pushboth_b_Edurne() // Alejandro Garcia 19/06/2019
-{
-	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("pushbothb.g"); // This gcode is executed by Edurne and Printer ant the same time
-
-	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98); // running a system macro
-}
-void GCodes::Exec_unloadsync_Edurne() // Alejandro Garcia 19/06/2019
-{
-	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("unloadsync.g"); // This gcode is executed by Edurne and Printer ant the same time
-
-	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98); // running a system macro
-}
-void GCodes::Exec_pushunloadalone_Edurne() // Alejandro Garcia 19/06/2019
-{
-	String<ShortScratchStringLength> scratchString;
-	scratchString.printf("pushunloadalone.g");
-
-	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 0); // running a system macro
-
-
-}
-void GCodes::autoresume_Edurne() // Alejandro Garcia 19/06/2019
-{
-
-	DoFileMacro(*queuedGCode, RESUME_AUTO_G, true, 98); // running a system macro
-
-}
-#endif
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)
 {
@@ -296,18 +164,24 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb)
 	// Handle any E parameter in the G92 command
 	if (gb.Seen(extrudeLetter))
 	{
-		virtualExtruderPosition = gb.ConvertDistance(gb.GetFValue());
+		virtualExtruderPosition = gb.GetDistance();
 	}
 
 	if (axesIncluded != 0)
 	{
 		ToolOffsetTransform(currentUserPosition, moveBuffer.coords);
-		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false, limitAxes))	// pretend that all axes are homed
+		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false, limitAxes)
+			!= LimitPositionResult::ok												// pretend that all axes are homed
+		   )
 		{
 			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// make sure the limits are reflected in the user position
 		}
 		reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 		axesHomed |= reprap.GetMove().GetKinematics().AxesAssumedHomed(axesIncluded);
+		if (IsBitSet(axesIncluded, Z_AXIS))
+		{
+			zDatumSetByProbing -= false;
+		}
 
 #if SUPPORT_ROLAND
 		if (reprap.GetRoland()->Active())
@@ -341,7 +215,7 @@ GCodeResult GCodes::OffsetAxes(GCodeBuffer& gb, const StringRef& reply)
 #else
 			axisOffsets[axis]
 #endif
-						 = -gb.ConvertDistance(gb.GetFValue());
+						 = -gb.GetDistance();
 			seen = true;
 		}
 	}
@@ -377,7 +251,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 		{
 			if (gb.Seen(axisLetters[axis]))
 			{
-				const float coord = gb.ConvertDistance(gb.GetFValue());
+				const float coord = gb.GetDistance();
 				if (!seen)
 				{
 					if (!LockMovementAndWaitForStandstill(gb))						// make sure the user coordinates are stable and up to date
@@ -386,17 +260,11 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 					}
 					seen = true;
 				}
-				workplaceCoordinates[cs - 1][axis] = (compute)
-													? currentUserPosition[axis] - coord + workplaceCoordinates[currentCoordinateSystem][axis]
-														: coord;
+				workplaceCoordinates[cs - 1][axis] = (compute) ? currentUserPosition[axis] - coord : coord;
 			}
 		}
 
-		if (seen)
-		{
-			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates in case we are using the workspace we just changed
-		}
-		else
+		if (!seen)
 		{
 			reply.printf("Origin of workplace %" PRIu32 ":", cs);
 			for (size_t axis = 0; axis < numVisibleAxes; axis++)
@@ -410,7 +278,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 	return GCodeResult::badOrMissingParameter;
 }
 
-// Save any modified workplace coordinate offsets to file returning true if successful. Used by M500.
+// Save all the workplace coordinate offsets to file returning true if successful. Used by M500 and by SaveResumeInfo.
 bool GCodes::WriteWorkplaceCoordinates(FileStore *f) const
 {
 	for (size_t cs = 0; cs < NumCoordinateSystems; ++cs)
@@ -470,7 +338,7 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	float radius = -1.0;
 	gb.TryGetFValue('R', radius, seenR);
 
-	if (!seenX && !seenY && !seenR && !seenS)
+	if (!seenX && !seenY && !seenR && !seenS && !seenP)
 	{
 		// Just print the existing grid parameters
 		if (defaultGrid.IsValid())
@@ -494,7 +362,7 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	if (!seenX && !seenR)
 	{
 		// Must have given just the S or P parameter
-		reply.copy("specify at least radius or X,Y ranges in M577");
+		reply.copy("specify at least radius or X and Y ranges in M577");
 		return GCodeResult::error;
 	}
 
@@ -932,12 +800,15 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 				c = ':';
 			}
 		}
-		reply.cat(' ');
-		char c = extrudeLetter;
-		for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+		if (numExtruders != 0)
 		{
-			reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
-			c = ':';
+			reply.cat(' ');
+			char c = extrudeLetter;
+			for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+			{
+				reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
+				c = ':';
+			}
 		}
 		reply.catf(", %u axes visible", numVisibleAxes);
 	}
@@ -1021,7 +892,7 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 			// Deal with feed rate
 			if (gb.Seen(feedrateLetter))
 			{
-				const float rate = gb.ConvertDistance(gb.GetFValue());
+				const float rate = gb.GetDistance();
 				gb.MachineState().feedRate = rate * SecondsToMinutes;	// don't apply the speed factor to homing and other special moves
 			}
 			moveBuffer.feedRate = gb.MachineState().feedRate;
@@ -1032,6 +903,70 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 		}
 	}
 
+	return GCodeResult::ok;
+}
+
+GCodeResult GCodes::FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply, const bool towardsMin)
+{
+	if (reprap.GetCurrentTool() == nullptr)
+	{
+		reply.copy("No tool selected!");
+		return GCodeResult::error;
+	}
+
+	if (!LockMovementAndWaitForStandstill(gb))
+	{
+		return GCodeResult::notFinished;
+	}
+
+	for (size_t axis = 0; axis < numVisibleAxes; axis++)
+	{
+		if (gb.Seen(axisLetters[axis]))
+		{
+
+			SetMoveBufferDefaults();
+
+			// Prepare a move similar to G1 .. S3
+			moveBuffer.moveType = 3;
+			SetBit(moveBuffer.endStopsToCheck, axis);
+			axesToSenseLength = 0;
+
+			doingArcMove = false;
+
+			moveBuffer.canPauseAfter = false;
+			moveBuffer.hasExtrusion = false;
+
+			moveBuffer.coords[axis] = towardsMin ? platform.AxisMinimum(axis) : platform.AxisMaximum(axis);
+
+			// Deal with feed rate
+			if (gb.Seen(feedrateLetter))
+			{
+				const float rate = gb.ConvertDistance(gb.GetFValue());
+				gb.MachineState().feedRate = rate * SecondsToMinutes;	// don't apply the speed factor to homing and other special moves
+			}
+			else
+			{
+				reply.copy("No feed rate provided.");
+				return GCodeResult::badOrMissingParameter;
+			}
+			moveBuffer.feedRate = gb.MachineState().feedRate;
+
+			if (towardsMin)
+			{
+				gb.SetState(GCodeState::findCenterOfCavityMin);
+			}
+			else
+			{
+				gb.SetState(GCodeState::findCenterOfCavityMax);
+			}
+
+			// Kick off new movement
+			NewMoveAvailable(1);
+
+			// Only do one axis at a time
+			break;
+		}
+	}
 	return GCodeResult::ok;
 }
 
@@ -1270,477 +1205,6 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 	return GCodeResult::error;
 #endif
 }
-
-// Handle M262
-uint8_t GCodes::CommI2c_M24C02_read_byte(uint32_t addr, uint8_t memory_pos) // Read byte from EEPROM: inputs: i2c address and memory position
-{
-#if defined(I2C_IFACE)
-
-		const uint32_t address = addr;
-
-		I2C::Init();
-		uint8_t bValues[MaxI2cBytes];
-		bValues[0] = memory_pos;
-		size_t bytesTransferred;
-		{
-			bytesTransferred = I2C_IFACE.Transfer(address, bValues, 1, 1); //Send 1 byte to refer the memory position & Receive such a byte
-		}
-
-		if (bytesTransferred < 1)
-		{
-			platform.MessageF(ErrorMessage, "I2C send query error \n");
-			return 0;
-		}
-
-
-		if (bytesTransferred == 1)
-		{
-			platform.MessageF(ErrorMessage," nothing");
-		}
-		else
-		{
-			for (size_t i = 1; i < bytesTransferred; ++i)
-			{
-				return bValues[i];
-			}
-		}
-
-		return 0;
-
-#else
-
-	return 0;
-#endif
-}
-
-// Not in use right now
-
-uint8_t GCodes::CommI2c_M24C02_write_byte(uint32_t addr, uint8_t memory_pos, uint8_t value) // write byte from EEPROM: inputs: i2c address, memory position and value
-{
-#if defined(I2C_IFACE)
-
-		const uint32_t address = addr;
-
-		I2C::Init();
-		uint8_t bValues[MaxI2cBytes];
-		bValues[0] = memory_pos;
-		bValues[1] = value;
-		size_t bytesTransferred;
-		{
-			MutexLocker lock(Tasks::GetI2CMutex());
-			bytesTransferred = I2C::Transfer(address, bValues, 2, 0); //Send 1 byte to refer the memory position & Receive such a byte
-		}
-
-		if (bytesTransferred < 1)
-		{
-			platform.MessageF(ErrorMessage, "I2C send query error \n");
-			return 0;
-		}
-
-
-		if (bytesTransferred == 1)
-		{
-			platform.MessageF(ErrorMessage," nothing");
-		}
-		else if (bytesTransferred == 2)
-		{
-			return 1;//success
-
-		}else{
-			platform.MessageF(ErrorMessage," something wrong");
-		}
-
-		return 0;
-
-#else
-
-	return 0;
-#endif
-}
-
-// Handle M264 0.2
-
-uint8_t GCodes::CommI2c_M24C02_erase_page(uint32_t addr, uint8_t memory_pos, uint8_t value) // Erase the page given by the direction of the memory position
-{
-#if defined(I2C_IFACE)
-
-		const uint32_t address = addr;
-
-		I2C::Init();
-		uint8_t bValues[MaxI2cBytes];
-		bValues[0] = memory_pos;
-		for (size_t i = 1; i < 17; ++i)
-		{
-			bValues[i] = value;
-		}
-		size_t bytesTransferred;
-		{
-			MutexLocker lock(Tasks::GetI2CMutex());
-			bytesTransferred = I2C::Transfer(address, bValues, 17, 0); //Send 16 to erase a page
-		}
-
-		if (bytesTransferred < 1)
-		{
-			platform.MessageF(ErrorMessage, "I2C send query error \n");
-			return 0;
-		}
-
-
-		if (bytesTransferred == 1)
-		{
-			platform.MessageF(ErrorMessage," nothing");
-		}
-		else if (bytesTransferred == 17)
-		{
-			return 1;//success
-
-		}else{
-			platform.MessageF(ErrorMessage," something wrong");
-		}
-
-		return 0;
-
-#else
-
-	return 0;
-#endif
-}
-
-// Handle M263
-
-GCodeResult GCodes::CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &reply) // Each memory page has 16bytes
-{
-#if defined(I2C_IFACE)
-	if (gb.Seen('A'))
-	{
-		const uint32_t address = gb.GetUIValue();
-		uint32_t memaddress = 0;
-
-		if (gb.Seen('L'))
-		{
-			switch(gb.GetUIValue()){
-
-			case 1://Hotend ID
-				memaddress = 16; // page every 16 bytes
-				break;
-			case 2://Date made
-				memaddress = 32;
-			  break;
-			case 3://Nozzle Size
-				memaddress = 48;
-			 break;
-			default:
-				return GCodeResult::badOrMissingParameter;
-				break;
-			}
-
-		}
-
-		int32_t values[15 + 1];// max page is 16(data 15 + 1 (CRC)) + 1 addrs
-		size_t numToSend;
-		if (gb.Seen('B'))
-		{
-			numToSend = 15; // 15 of data
-			gb.GetIntArray(values, numToSend, false);		//TODO allow hex values of the data
-		}
-		else
-		{
-			numToSend = 0;
-		}
-
-		if (numToSend != 0)
-		{
-			if (numToSend > 16)
-			{
-				return GCodeResult::badOrMissingParameter;
-			}
-			uint8_t bValues[16+1];
-			uint8_t checksum = 0;
-			bValues[0] = (uint8_t) memaddress;// set first the memory address
-
-			for (size_t i = 0; i < numToSend; ++i)
-			{
-				bValues[i+1] = (uint8_t)values[i];
-				checksum = checksum^values[i]; // Calc Checksum 8 bit
-			}
-
-			numToSend++; // 1 addrs
-
-			bValues[numToSend] = checksum;// set at the last byte the CRC
-
-			numToSend++; // 1 CRC
-
-			I2C::Init();
-			size_t bytesTransferred;
-			{
-				bytesTransferred = I2C::Transfer(address, bValues, numToSend, 0);
-			}
-
-			if (bytesTransferred < numToSend)
-			{
-				reply.copy("I2C transmission error");
-				return GCodeResult::error;
-			}
-			delay(5);
-			uint8_t rchecksum = CommI2c_M24C02_read_byte(address, memaddress + numToSend - 2);// at the position (memaddress + numToSend - 2) is where there are stored the CRC
-			//platform.MessageF(GenericMessage, "Send %02x \n",checksum);  //debug CRC
-			//platform.MessageF(GenericMessage, "Recv %02x \n",rchecksum); //debug CRC
-			if (checksum != rchecksum)
-			{
-				reply.copy("Checksum mismatch");
-				return GCodeResult::error;
-			}
-
-			return (bytesTransferred == numToSend ) ? GCodeResult::ok : GCodeResult::error;
-		}
-	}
-
-	return GCodeResult::badOrMissingParameter;
-#else
-	reply.copy("I2C not available");
-	return GCodeResult::error;
-#endif
-}
-// Handle M265
-GCodeResult GCodes::CommI2C_M24C02_store_currentdate(GCodeBuffer& gb, const StringRef &reply) // save current date at the memory page 5
-{
-#if defined(I2C_IFACE)
-
-	if (gb.Seen('A')){
-		const uint32_t address = gb.GetUIValue();
-		const uint32_t memaddr = 5;
-		// Get current RTC time
-
-		const time_t now = platform.GetDateTime();
-		struct tm timeInfo;
-
-		if (gmtime_r(&now, &timeInfo) != nullptr)
-		{
-			uint8_t checksum = 0;
-			uint8_t b_calc = 0; // calculed byte
-			int i = 0;
-			//Save MSB_year
-			b_calc = uint8_t((timeInfo.tm_year + 1900) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_year
-			b_calc = uint8_t((timeInfo.tm_year + 1900) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save MSB_month
-			b_calc = uint8_t((timeInfo.tm_mon + 1) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_month
-			b_calc = uint8_t((timeInfo.tm_mon + 1) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save MSB_day
-			b_calc = uint8_t((timeInfo.tm_mday) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_day
-			b_calc = uint8_t((timeInfo.tm_mday) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save MSB_hour
-			b_calc = uint8_t((timeInfo.tm_hour) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_hour
-			b_calc = uint8_t((timeInfo.tm_hour) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save MSB_min
-			b_calc = uint8_t((timeInfo.tm_min) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_min
-			b_calc = uint8_t((timeInfo.tm_min) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save MSB_sec
-			b_calc = uint8_t((timeInfo.tm_sec) >> 8);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++;
-			delay(5);
-			//Save LSB_sec
-			b_calc = uint8_t((timeInfo.tm_sec) & 0x00FF);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,b_calc);
-			checksum = checksum^b_calc; // Calc Checksum 8 bit
-			i++; // i equal to 12
-			delay(5);
-			CommI2c_M24C02_write_byte(address,memaddr*16+i,checksum); // Write Checksum
-			delay(5);
-			uint8_t rchecksum = 0;
-			rchecksum = CommI2c_M24C02_read_byte(address,memaddr*16+i); // Read Checksum
-			if (checksum != rchecksum)
-			{
-				reply.copy("Checksum mismatch");
-				return GCodeResult::error;
-			}else{
-				reply.printf("Current RTC time saved successfully, device: %d \n", (int)address);
-				return GCodeResult::ok;
-			}
-		}
-	}
-
- return GCodeResult::badOrMissingParameter;
-
-
-#else
-	reply.copy("I2C not available");
-	return GCodeResult::error;
-#endif
-}
-// Handle M266
-GCodeResult GCodes::CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const StringRef &reply) // save current date at the memory page 5
-{
-#if defined(I2C_IFACE)
-
-	if (gb.Seen('A')){
-		const uint32_t address = gb.GetUIValue();
-		const uint32_t memaddr = 5;
-		// Get current RTC time
-		struct tm timeInfo;
-
-		uint8_t checksum = 0;
-		uint8_t b_read = 0; // calculed byte
-		int i = 0;
-
-		//Save MSB_year
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_year = b_read << 8;
-		i++;
-		//Save LSB_year
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_year += b_read;
-		i++;
-		//Save MSB_month
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_mon = b_read << 8;
-		i++;
-		//Save LSB_month
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_mon += b_read;
-		i++;
-		//Save MSB_day
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_mday = b_read << 8;
-		i++;
-		//Save LSB_day
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_mday += b_read;
-		i++;
-		//Save MSB_hour
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_hour = b_read << 8;
-		i++;
-		//Save LSB_hour
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_hour += b_read;
-		i++;
-		//Save MSB_min
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_min = b_read << 8;
-		i++;
-		//Save LSB_min
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_min += b_read;
-		i++;
-		//Save MSB_sec
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_sec = b_read << 8;
-		i++;
-		//Save LSB_sec
-		b_read = CommI2c_M24C02_read_byte(address,memaddr*16+i);
-		checksum = checksum^b_read; // Calc Checksum 8 bit
-		timeInfo.tm_sec += b_read;
-		i++; // i equal to 12
-
-		uint8_t rchecksum = 0;
-		rchecksum = CommI2c_M24C02_read_byte(address,memaddr*16+i); // Read Checksum
-
-		if (checksum != rchecksum)
-		{
-			reply.copy("Checksum mismatch");
-			return GCodeResult::error;
-		}else{
-
-			reply.printf("Last writing date: %04u-%02u-%02u %02u:%02u:%02u\n", timeInfo.tm_year, timeInfo.tm_mon, timeInfo.tm_mday,
-					timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
-
-			return GCodeResult::ok;
-		}
-
-	}
-
- return GCodeResult::badOrMissingParameter;
-
-
-#else
-	reply.copy("I2C not available");
-	return GCodeResult::error;
-#endif
-}
-#ifdef BCN3D_DEV
-//Deal with M770
-GCodeResult GCodes::ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef &reply){
-
-	uint8_t ss = 0;
-	if (gb.Seen('S')){
-		ss = (uint8_t)gb.GetUIValue();
-
-		if(ss >= N_Spools){
-			reply.copy("Spi channel are not between 0-%d",(int)(N_Spools-1));
-			return GCodeResult::badOrMissingParameter;
-		}
-
-
-	}else{
-		reply.copy("Parameter missing");
-		return GCodeResult::badOrMissingParameter;
-	}
-
-
-	reprap.GetTagReaderWriter().Create(ss);
-
-
-	return GCodeResult::ok;
-}
-#endif
 
 // Deal with M569
 GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply)

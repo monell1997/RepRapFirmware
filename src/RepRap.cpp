@@ -13,7 +13,7 @@
 #include "Tools/Filament.h"
 #include "Tasks.h"
 #include "Version.h"
-#include <Tools/FilamentHandler.h>
+
 #ifdef DUET_NG
 # include "DueXn.h"
 #endif
@@ -186,11 +186,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	gCodes = new GCodes(*platform);
 	move = new Move();
 	heat = new Heat(*platform);
-#ifdef BCN3D_DEV
-	tagreaderwriter = new SpoolRDIF_Reader();
-	spoolsupplier = new SpoolSupplier();
-	filamenthandler = new FilamentHandler();
-#endif
+
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
 #endif
@@ -215,7 +211,7 @@ void RepRap::Init()
 {
 	toolListMutex.Create("ToolList");
 	messageBoxMutex.Create("MessageBox");
-	//ktagreaderwriter->begin();
+
 	platform->Init();
 	network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
@@ -236,9 +232,6 @@ void RepRap::Init()
 #endif
 	printMonitor->Init();
 	FilamentMonitor::InitStatic();
-#ifdef BCN3D_DEV
-	hdcsensorhi->InitStatic();
-#endif
 #if SUPPORT_12864_LCD
 	display->Init();
 #endif
@@ -419,25 +412,6 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleFilamentSensors;
 	FilamentMonitor::Spin();
-
-#ifdef BCN3D_DEV
-	ticksInSpinState = 0;
-	spinningModule = moduleSpoolSupplier;
-	spoolsupplier->Spin();
-
-	ticksInSpinState = 0;
-	spinningModule = moduleHdcSensorhi;
-	hdcsensorhi->Spin();
-
-	ticksInSpinState = 0;
-	spinningModule = moduleTagReader;
-	tagreaderwriter->Spin();
-
-	ticksInSpinState = 0;
-	spinningModule = moduleFilamentHandler;
-	filamenthandler->Spin();
-#endif
-
 
 #if SUPPORT_12864_LCD
 	ticksInSpinState = 0;
@@ -738,7 +712,7 @@ void RepRap::StandbyTool(int toolNumber, bool simulating)
 	}
 	else
 	{
-		platform->MessageF(ErrorMessage, "Attempt to standby a non-existent tool: %d.\n", toolNumber);
+		platform->MessageF(ErrorMessage, "Attempt to standby a non-existent tool: %d\n", toolNumber);
 	}
 }
 
@@ -876,7 +850,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 	{
-		response->catf("%c%d", ch, (gCodes->GetAxisIsHomed(axis)) ? 1 : 0);
+		response->catf("%c%d", ch, (gCodes->IsAxisHomed(axis)) ? 1 : 0);
 		ch = ',';
 	}
 
@@ -891,12 +865,10 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 #else
 	response->cat("],\"xyz\":");
 #endif
-	const float * const userPos = gCodes->GetUserPosition();
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; axis++)
 	{
-		const float coord = userPos[axis];
-		response->catf("%c%.3f", ch, HideNan(coord));
+		response->catf("%c%.3f", ch, HideNan(gCodes->GetUserCoordinate(axis)));
 		ch = ',';
 	}
 
@@ -991,7 +963,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 				response->EncodeString(mbox.message, false);
 				response->cat(",\"title\":");
 				response->EncodeString(mbox.title, false);
-				response->catf(",\"mode\":%d,\"seq\":%" PRIu32 ",\"timeout\":%.1f,\"controls\":%" PRIu32 "}", mbox.mode, mbox.seq, (double)timeLeft, mbox.controls);
+				response->catf(",\"mode\":%d,\"seq\":%" PRIu32 ",\"timeout\":%.1f,\"controls\":%u}", mbox.mode, mbox.seq, (double)timeLeft, mbox.controls);
 			}
 			response->cat('}');
 		}
@@ -1721,13 +1693,11 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 
 	// First the user coordinates
 	response->catf(",\"pos\":");			// announce the user position
-	const float * const userPos = gCodes->GetUserPosition();
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; axis++)
 	{
 		// Coordinates may be NaNs, for example when delta or SCARA homing fails. Replace any NaNs or infinities by 9999.9 to prevent JSON parsing errors.
-		const float coord = userPos[axis];
-		response->catf("%c%.3f", ch, HideNan(coord));
+		response->catf("%c%.3f", ch, HideNan(gCodes->GetUserCoordinate(axis)));
 		ch = ',';
 	}
 
@@ -1809,7 +1779,7 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 	{
-		response->catf("%c%d", ch, (gCodes->GetAxisIsHomed(axis)) ? 1 : 0);
+		response->catf("%c%d", ch, (gCodes->IsAxisHomed(axis)) ? 1 : 0);
 		ch = ',';
 	}
 	response->cat(']');
@@ -1838,7 +1808,7 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 
 		if (mbox.active)
 		{
-			response->catf(",\"msgBox.mode\":%d,\"msgBox.seq\":%" PRIu32 ",\"msgBox.timeout\":%.1f,\"msgBox.controls\":%" PRIu32 "",
+			response->catf(",\"msgBox.mode\":%d,\"msgBox.seq\":%" PRIu32 ",\"msgBox.timeout\":%.1f,\"msgBox.controls\":%u",
 							mbox.mode, mbox.seq, (double)timeLeft, mbox.controls);
 			response->cat(",\"msgBox.msg\":");
 			response->EncodeString(mbox.message, false);
@@ -2140,18 +2110,22 @@ void RepRap::Beep(unsigned int freq, unsigned int ms)
 	ms = constrain<unsigned int>(ms, 10, 60000);
 
 	// If there is an LCD device present, make it beep
+	bool bleeped = false;
 #if SUPPORT_12864_LCD
 	if (display->IsPresent())
 	{
 		display->Beep(freq, ms);
+		bleeped = true;
 	}
-	else
 #endif
+
 	if (platform->HaveAux())
 	{
 		platform->Beep(freq, ms);
+		bleeped = true;
 	}
-	else
+
+	if (!bleeped)
 	{
 		beepFrequency = freq;
 		beepDuration = ms;
@@ -2324,14 +2298,14 @@ bool RepRap::WriteToolSettings(FileStore *f) const
 	{
 		if (t != currentTool)
 		{
-			ok = t->WriteSettings(f);
+			ok = t->WriteSettings(f, false);
 		}
 	}
 
 	// Finally write the setting of the active tool and the commands to select it
 	if (ok && currentTool != nullptr)
 	{
-		ok = currentTool->WriteSettings(f);
+		ok = currentTool->WriteSettings(f, true);
 	}
 	return ok;
 }

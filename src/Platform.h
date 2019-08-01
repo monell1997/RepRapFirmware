@@ -297,12 +297,6 @@ struct AxisDriversConfig
 	uint8_t driverNumbers[MaxDriversPerAxis];		// The driver numbers assigned - only the first numDrivers are meaningful
 };
 
-struct AxisEndstopConfig
-{
-	uint8_t numEndstops;							// Number of endstop inputs assigned to each axis
-	uint8_t endstopNumbers[MaxDriversPerAxis];		// The endstop numbers assigned - only the first numEndstops are meaningful
-};
-
 // The main class that defines the RepRap machine for the benefit of the other classes
 class Platform
 {
@@ -459,7 +453,6 @@ public:
 
 	void GetEndStopConfiguration(size_t axis, EndStopPosition& endstopPos, EndStopInputType& inputType) const
 		pre(axis < MaxAxes);
-
 
 	uint32_t GetAllEndstopStates() const;
 
@@ -756,7 +749,6 @@ private:
 	float motorCurrents[MaxTotalDrivers];				// the normal motor current for each stepper driver
 	float motorCurrentFraction[MaxTotalDrivers];		// the percentages of normal motor current that each driver is set to
 	AxisDriversConfig axisDrivers[MaxAxes];				// the driver numbers assigned to each axis
-	AxisEndstopConfig axisEndstops[MaxAxes];			// the endstop input numbers assigned to each axis
 	uint8_t extruderDrivers[MaxExtruders];				// the driver number assigned to each extruder
 	uint32_t driveDriverBits[2 * MaxTotalDrivers];		// the bitmap of driver port bits for each axis or extruder, followed by the raw versions
 	uint32_t slowDriverStepTimingClocks[4];				// minimum step high, step low, dir setup and dir hold timing for slow drivers
@@ -1003,7 +995,7 @@ inline float Platform::MaxFeedrate(size_t drive) const
 
 inline void Platform::SetMaxFeedrate(size_t drive, float value)
 {
-	maxFeedrates[drive] = max<float>(value, 1.0);		// don't allow zero or negative
+	maxFeedrates[drive] = max<float>(value, minimumMovementSpeed);	// don't allow zero or negative, but do allow small values
 }
 
 inline float Platform::GetInstantDv(size_t drive) const

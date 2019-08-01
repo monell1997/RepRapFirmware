@@ -173,7 +173,7 @@ bool HangprinterKinematics::IsReachable(float x, float y, bool isCoordinated) co
 }
 
 // Limit the Cartesian position that the user wants to move to returning true if we adjusted the position
-bool HangprinterKinematics::LimitPosition(float finalCoords[], float * null initialCoords, size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const
+LimitPositionResult HangprinterKinematics::LimitPosition(float finalCoords[], const float * null initialCoords, size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const
 {
 	const AxesBitmap allAxes = MakeBitmap<AxesBitmap>(X_AXIS) | MakeBitmap<AxesBitmap>(Y_AXIS) | MakeBitmap<AxesBitmap>(Z_AXIS);
 	bool limited = false;
@@ -205,7 +205,9 @@ bool HangprinterKinematics::LimitPosition(float finalCoords[], float * null init
 			}
 		}
 	}
-	return limited;
+
+	//TODO check intermediate positions, especially uif.when we support an offset radius
+	return (limited) ? LimitPositionResult::adjusted : LimitPositionResult::ok;
 }
 
 // Return the initial Cartesian coordinates we assume after switching to this kinematics
@@ -241,7 +243,7 @@ void HangprinterKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, c
 }
 
 // Return the axes that we can assume are homed after executing a G92 command to set the specified axis coordinates
-uint32_t HangprinterKinematics::AxesAssumedHomed(AxesBitmap g92Axes) const
+AxesBitmap HangprinterKinematics::AxesAssumedHomed(AxesBitmap g92Axes) const
 {
 	// If all of X, Y and Z have been specified then we know the positions of all 4 spool motors, otherwise we don't
 	const uint32_t xyzAxes = (1u << X_AXIS) | (1u << Y_AXIS) | (1u << Z_AXIS);

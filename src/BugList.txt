@@ -123,22 +123,82 @@ Done in 2.03RC1:
 - [done, ok, port] Bug: was holding movement lock while waiting for bed or extruder to heat up, so unable to pause/cancel during heat up
 - [done, ok, port] Bug: fix crash when there were no selectable items in a menu
 - [done, ok, port] Only add 1 space after left-aligned text items with no explicit width
-- [done, ok] Mount SD cards automatically if they are not mounted and we are asked to list files on them, andf display any error messages
+- [done, ok] Mount SD cards automatically if they are not mounted and we are asked to list files on them from 12864 display, and display any error messages
 
-To port to v3-dev:
-GCodes2.cpp
-GCodes.cpp
-GCodeMachineState.h
-Configuration.h
-Display.h, .cpp
-Menu.cpp
-MenuItem.h, cpp
-
-Planned for 2.03:
+Done in 2.0RC2:
 - [done, community to test] I2C errors: recover from them
 - [done, ok] Separate task to keep DuetX endstop input state up to date
-- [ok] check: start.g should not be run when resurrecting a print
 
+Done in 2.0 RC3:
+- [done] M584 formatting improvement when no extruders
+- [done] Probably issue with leadscrew move when driver numbers >= MaxAxes are used to drive Z motors
+- [done] In CoreNG, increment I2C reset count when resetting the I2C system
+- [done, ok] Recognise filament usage comment in Prusa slicer, https://forum.duet3d.com/post/95091
+- [done, test] M585 L parameter still not working
+- [done, test] In resume.g a G1 R command goes to the wrong coordinates. Save restore point in machine coordinates always? But we do need to take tool offsets into account.
+- [should be ok now, reproduce original problem, test] Homing files when workplace coordinates were active cause other axes to move, RL and https://forum.duet3d.com/topic/10480/new-firmware-2-03rc2-available/16
+- [should be ok now that restore points are in machine coordinates; test] Resurrect.g all coordinates need to be machine coordinates
+- [done, test] Resurrect.g restore workplace # and workplace offsets
+- [done] Probable error with babystepping: incorrect sign when doing tool offset inverse transform, so it restores an incorrect Z position
+- [done] G53 now available even when workplace coordinates not supported in build (cancels tool offsets)
+- [done, test] For E3D: scale feed rate in proportion to total mix, for serial extruder drives etc.
+- [done, test] Allow M203 max speeds lower than 1mm/sec, https://forum.duet3d.com/post/95049
+- [done] Enable laser in Duet085 build
+- [done, ok] M563 P# with no other parameters: better response formatting when no heaters or no drives
+- [done] Added extra diagnostics for when a filename is too long
+- [done, test with over-long filenames] Added missing newline at end of some error messages
+- [done] in resurrect.g, for tool changer, select tool after running reasurrect-prologue and run tpre and tpost files when selecting current tool
+- [done] In resurrect.g, set up fan speeds after the tool is selected so that the mapped fan speed is correct
+
+- [no fault] Investigate https://forum.duet3d.com/post/94668 (filament load macro using stall detect not working)
+
+In 2.03RC4:
+- [done] Print Z shift in Move diagnostics
+- [done] In Move diagnostics, only print bed probe heights if 3/4/5-point bed compensation is in use
+- [done] Bug fix for Z shift if Z probe averaging mode is being used
+- [done, test]Bug fix: M0 H1 turns heaters off there is a stop.g file
+- [done] M1 no longer disables drives (you can do that in sleep.g)
+- [done] M0/M1 with a stop.g/sleep.g file no longer deselects the tool, it just turns off tool heaters if no H1 parameter
+- [done, ok] After grid probing, print min/max error as well as mean and std dev, also record them in the height map file
+- [done] M675 PR
+- [done] Warning if you run mesh bed probing and there is a substantial height offset
+- [done] Warning if you load a mesh and the Z datum has not been set by probing and there is a Z probe
+- [done] Fix 2.03RC3 bug: G10 L20 gave wrong results when a workplace coordinate offset was in use
+- [done] M114 displays bed compensation amount at current position
+
+In 2.03RC5:
+- [done] After running stop.g ensure all moves are finished before setting motors to idle current, https://forum.duet3d.com/post/96452
+- [done] When downloading a .zip file don't set content-encoding to gzip, https://forum.duet3d.com/post/96469
+- [done, test] When disabling HTTP protocol or disabling the network, release any associated resources e.g. output buffers. Similarly for FTP and Telnet.
+- [done, ok] Delta printer: after homing, allows attempts to move Z up beyond endstop switches, https://forum.duet3d.com/topic/10735/delta-printer-max-limits
+- [done, ok] FTP responder: initialise haveCompleteLine (thanks gtjoseph)
+- [done] In SCARA printers/laser cutters (not CNC), if we can't do a coordinated travel move due to unreachable intermediate positions, try an uncoordinated one
+- [done] Duet Maestro build now supports laser cutters
+- [done] SCARA bug: when attempting to move beyond arm limits the cached X and Y are inconsistent with the cached theta and psi
+
+For 2.03 release:
+- Add virtual extruder position to M114 response for Octoprint, https://forum.duet3d.com/topic/10821/returning-virtual-extruder-position-in-m114/3
+- When disabling network or a protocol, set the number of active HTTP and/or Telnet clients to 0
+- Added jerk policy, P parameter to M566
+- Pulse-type filament monitor now reports mm/pulse to 3 decimal places instead of 2
+
+- For 2.04:
+- [done] Bug: delta auto calibration adjusts homed height incorrectly if the delta radius or rod length was changed
+- [done] Bug: G29 P parameter doesn't work if there are nonempty deployprobe.g/retractprobe.g files, https://forum.duet3d.com/topic/10904/g29-p-parameter-ignored/5. Remove P parameter from G29 S0, add G29 S3 (same as M374).
+- [done] Bug: M557 P parameter didn't work
+- [done] G31 to show current parameters, not just probe output value
+- [done] Pulsed filament monitors: don't try to resync on every interrupt when interrupts are arriving very fast because the sensor has high resolution
+- [done] M118 to append \n if the destination is Telnet
+- [done] Bug with small Z movements at Zmin, https://forum.duet3d.com/topic/11025/strange-behavior
+- [done] Trilateration wrong when diagonal rods are not all the same lengths, https://forum.duet3d.com/post/99714
+
+Outstanding issues:
+- Running out of output buffers and not freeing them up, https://forum.duet3d.com/post/96586
+- Inconsistent Z0 position, https://forum.duet3d.com/user/caveman
+- [defer] When writing resurrect.g after a pause, 
+
+Planned for 3.0:
+- Bug? DWC 1.22.6 doesn't auto show the height map after probing since firmware 2.03, https://forum.duet3d.com/topic/10904/g29-p-parameter-ignored/5
 - [on hold] investigate filament file not run on initial tool change, https://forum.duet3d.com/topic/9405/first-t0-in-gcode-does-not-work/5
 - Filament monitors: disable if tool is not active/no commanded extrusion, or does it do that already?
 - [yes it already did] In simulation mode, does M109 implicity select a tool? https://forum.duet3d.com/topic/9595/simulation-error

@@ -19,8 +19,6 @@
 #include "RepRap.h"
 #include "Tools/Tool.h"
 #include "FilamentMonitors/FilamentMonitor.h"
-#include "SpoolSupplier/SpoolSupplier.h"
-#include "Tools/FilamentHandler.h"
 #include "General/IP4String.h"
 #include "Movement/StepperDrivers/DriverMode.h"
 #include "Version.h"
@@ -245,6 +243,10 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 				ClearBedMapping();
 				break;
 
+			case 3:		// save height map to names file
+				result = SaveHeightMap(gb, reply);
+				break;
+
 			default:
 				result = GCodeResult::badOrMissingParameter;
 				break;
@@ -287,106 +289,24 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 
 		DoFileMacro(gb, BED_EQUATION_G, true);	// Try to execute bed.g
 		break;
-#ifdef BCN3D_DEV
-	case 33: //Set the current Z Position as the Z-probe offset
 
-			result = SetPrintZprobe_Zoffset_BCN3D(gb, reply);
-
-			break;
-
-	case 34: //Auto XY calib BCN3D
-
-		result = FindXYOffet_BCN3D(gb, reply);
-
-		break;
-
-	case 35: //Auto XY calib BCN3D
-
-		if (gb.Seen(axisLetters[X_AXIS]))
-		{
-			//Save Value
-
-			platform.MessageF(GenericMessage, "X position triggered is %0.2f \n",(double) currentUserPosition[X_AXIS]);
-
-			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][X_AXIS]=currentUserPosition[X_AXIS];
-
-			xyz_Bcn3dCalib_Samples_Count++;
-			if(xyz_Bcn3dCalib_Samples_Count == 4){
-				xyz_Bcn3dCalib_Samples_Count = 0;
-				if(gb.Seen('S')){
-					xyz_Bcn3dCalib_Save = true;
-				}
-				gb.SetState(GCodeState::x_calib_bcn3d);
-			}
-
-
-		}else if (gb.Seen(axisLetters[Y_AXIS]))
-		{
-			//Save Value
-			platform.MessageF(GenericMessage, "Y position triggered is %0.2f \n",(double) currentUserPosition[Y_AXIS]);
-
-			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Y_AXIS]=currentUserPosition[Y_AXIS];
-
-			xyz_Bcn3dCalib_Samples_Count++;
-			if(xyz_Bcn3dCalib_Samples_Count == 4){
-				xyz_Bcn3dCalib_Samples_Count = 0;
-				if(gb.Seen('S')){
-					xyz_Bcn3dCalib_Save = true;
-				}
-
-				gb.SetState(GCodeState::y_calib_bcn3d);
-			}
-
-		}else if (gb.Seen(axisLetters[Z_AXIS]))
-		{
-			//Save Value
-			platform.MessageF(GenericMessage, "Z position triggered is %0.2f \n",(double) (currentUserPosition[Z_AXIS]));
-			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Z_AXIS]=currentUserPosition[Z_AXIS];
-
-			xyz_Bcn3dCalib_Samples_Count++;
-
-			if(xyz_Bcn3dCalib_Samples_Count == 2){
-
-				xyz_Bcn3dCalib_Samples_Count = 0;
-
-				if(gb.Seen('S')){
-					xyz_Bcn3dCalib_Save = true;
-				}
-				gb.SetState(GCodeState::z_calib_bcn3d);
-			}
-
-
-
-		}else{
-			reply.copy("Not X or Y axes has been selected");
-			result =  GCodeResult::error;
-		}
-
-
-		break;
-#endif
-
-#if SUPPORT_WORKPLACE_COORDINATES
 	case 53:	// Temporarily use machine coordinates
 		gb.MachineState().g53Active = true;
 		break;
 
+#if SUPPORT_WORKPLACE_COORDINATES
 	case 54:	// Switch to coordinate system 1
 	case 55:	// Switch to coordinate system 2
 	case 56:	// Switch to coordinate system 3
 	case 57:	// Switch to coordinate system 4
 	case 58:	// Switch to coordinate system 5
 	case 59:	// Switch to coordinate system 6,7,8,9
-		if (!LockMovementAndWaitForStandstill(gb))
-		{
-			return false;
-		}
 		{
 			unsigned int cs = code - 54;
 			if (code == 59)
 			{
 				const int8_t fraction = gb.GetCommandFraction();
-				if (fraction >= 0)
+				if (fraction > 0)
 				{
 					cs += (unsigned int)fraction;
 				}
@@ -394,9 +314,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 			if (cs < NumCoordinateSystems)
 			{
 				currentCoordinateSystem = cs;											// this is the zero-base coordinate system number
-				gb.MachineState().g53Active = false;
-				gb.MachineState().runningSystemMacro = false;
-				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates
+				gb.MachineState().g53Active = false;									// cancel any active G53
 			}
 			else
 			{
@@ -463,11 +381,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("Pause the print before attempting to cancel it");
 			result = GCodeResult::error;
 		}
-		else if (isWaiting)
-		{
-			cancelWait = true;								// was waiting for heating to complete, so cancel it
-			return false;
-		}
 		else if (   !LockMovementAndWaitForStandstill(gb)	// wait until everything has stopped
 				 || !IsCodeQueueIdle()						// must also wait until deferred command queue has caught up
 			    )
@@ -478,9 +391,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			const bool wasPaused = isPaused;				// isPaused gets cleared by CancelPrint
 			const bool wasSimulating = IsSimulating();		// simulationMode may get cleared by CancelPrint
-			
 			isWaiting = cancelWait = false;					// we may have been waiting for temperatures to be reached
-
 			StopPrint((&gb == fileGCode) ? StopPrintReason::normalCompletion : StopPrintReason::userCancelled);
 
 			if (!wasSimulating)								// don't run any macro files or turn heaters off etc. if we were simulating before we stopped the print
@@ -491,11 +402,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					break;
 				}
 
-				gb.SetState((code == 0) ? GCodeState::stopping : GCodeState::sleeping);
-				if (!DoFileMacro(gb, (code == 0) ? STOP_G : SLEEP_G, false))
-				{
-					reprap.GetHeat().SwitchOffAll(true);	// no stop.g file found, so default to turning all heaters off
-				}
+				const bool leaveHeatersOn = (gb.Seen('H') && gb.GetIValue() > 0);
+				gb.SetState((leaveHeatersOn) ? GCodeState::stoppingWithHeatersOn : GCodeState::stoppingWithHeatersOff);
+				(void)DoFileMacro(gb, (code == 0) ? STOP_G : SLEEP_G, false);
 			}
 		}
 		break;
@@ -1293,7 +1202,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			String<MaxFilenameLength> filename;
 			gb.GetPossiblyQuotedString(filename.GetRef());
-			DoFileMacro(gb, filename.c_str(), true, 98);
+			DoFileMacro(gb, filename.c_str(), true, code);
 		}
 		break;
 
@@ -1696,6 +1605,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					String<GCODE_LENGTH> message;
 					gb.GetQuotedString(message.GetRef());
 					platform.Message(type, message.c_str());
+					if (type != HttpMessage)
+					{
+						platform.Message(type, "\n");
+					}
 				}
 			}
 		}
@@ -1767,16 +1680,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 				if (code == 141)
 				{
-#ifdef BCN3D_DEV
-					int slave = heater;
-					if (gb.Seen('E')){
-						slave = gb.GetIValue();
-					}
-					platform.MessageF(GenericMessage,"%d\n",slave);
-					heat.SetChamberHeater(index, heater, slave);
-#else
 					heat.SetChamberHeater(index, heater);
-#endif
 				}
 				else
 				{
@@ -1976,7 +1880,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-					platform.SetAcceleration(axis, gb.ConvertDistance(gb.GetFValue()));
+					platform.SetAcceleration(axis, gb.GetDistance());
 					seen = true;
 				}
 			}
@@ -2014,14 +1918,20 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 203: // Set/print minimum/maximum feedrates
 		{
 			bool seen = false;
+
+			// Do the minimum first, because we constrain the maximum rates to be no lower than it
+			if (gb.Seen('I'))
+			{
+				seen = true;
+				platform.SetMinMovementSpeed(gb.GetDistance() * SecondsToMinutes);
+			}
+
 			for (size_t axis = 0; axis < numTotalAxes; ++axis)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
 					seen = true;
-
-					platform.SetMaxFeedrate(axis, gb.ConvertDistance(gb.GetFValue()) * SecondsToMinutes);
-
+					platform.SetMaxFeedrate(axis, gb.GetDistance() * SecondsToMinutes);
 				}
 			}
 
@@ -2035,13 +1945,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				{
 					platform.SetMaxFeedrate(numTotalAxes + e, gb.ConvertDistance(eVals[e]) * SecondsToMinutes);
 				}
-			}
-
-			if (gb.Seen('I'))
-			{
-				seen = true;
-				platform.SetMinMovementSpeed(gb.ConvertDistance(gb.GetFValue()) * SecondsToMinutes);
-
 			}
 
 			if (!seen)
@@ -2226,7 +2129,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 			else if (gb.Seen('S'))	// S parameter sets the override percentage
 			{
-
 				const float extrusionFactor = gb.GetFValue() / 100.0;
 				if (extrusionFactor >= 0.0)
 				{
@@ -2264,72 +2166,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 261:	// I2C send
 		result = ReceiveI2c(gb, reply);
 		break;
-#ifdef BCN3D_DEV
-	case 262:	// I2C report memory data from i2c address
-		{
 
-			if (gb.Seen('A')){
-				uint32_t address = gb.GetUIValue();
-				if (address < 0 && address > 255){
-					result = GCodeResult::badOrMissingParameter;
-				}else{
-					for (int j = 0; j < 16; j++){
-						for (int i = 0; i < 16; i++){
-							platform.MessageF(GenericMessage, " : ");
-							platform.MessageF(GenericMessage, "%02x",CommI2c_M24C02_read_byte( address,(16*j+i)));
-							platform.MessageF(GenericMessage, " : ");
-
-						}
-						platform.MessageF(GenericMessage, "\n");
-					}
-				}
-			}
-
-		}
-
-		break;
-	case 263:	// I2C write page to the memory
-		{
-			result = CommI2C_M24C02_write_page(gb, reply);
-		}
-		break;
-
-	case 264:	// I2C erase memory do not use this command during a print job
-		{
-
-			if (gb.Seen('A')){
-				uint32_t address = gb.GetUIValue();
-				if (address < 0 && address > 255){
-					result = GCodeResult::badOrMissingParameter;
-				}else{
-					for (int j = 0; j < 16; j++){
-
-						if(CommI2c_M24C02_erase_page( address,(16*j), 255) == 0){ // Set 0xff to all the memory
-							reply.printf("EEPROM erasing failure, device: %d \n", (int)address);
-							result = GCodeResult::error;
-							break;
-						}
-						delay(5);
-					}
-					reply.printf("EEPROM erasing Success, device: %d \n", (int)address);
-					result = GCodeResult::ok;
-				}
-			}
-
-		}
-
-		break;
-	case 265: // Save Current Real Time
-		{
-			result = CommI2C_M24C02_store_currentdate(gb, reply);
-		}
-		break;
-	case 266: // Show Current Date saved
-		{
-			result = CommI2C_M24C02_recover_currentdate(gb, reply);
-		}
-		break;
-#endif
 	case 280:	// Servos
 		if (gb.Seen('P'))
 		{
@@ -2696,7 +2533,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		break;
 
 	case 374: // Save grid and height map to file
-		result = GetGCodeResultFromError(SaveHeightMap(gb, reply));
+		result = SaveHeightMap(gb, reply);
 		break;
 
 	case 375: // Load grid and height map from file and enable compensation
@@ -3400,7 +3237,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-					platform.SetInstantDv(axis, gb.ConvertDistance(gb.GetFValue()) * multiplier1);
+					platform.SetInstantDv(axis, gb.GetDistance() * multiplier1);
 					seen = true;
 				}
 			}
@@ -3416,7 +3253,14 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					platform.SetInstantDv(numTotalAxes + e, eVals[e] * multiplier1);
 				}
 			}
-			else if (!seen)
+
+			if (code == 566 && gb.Seen('P'))
+			{
+				seen = true;
+				reprap.GetMove().SetJerkPolicy(gb.GetUIValue());
+			}
+
+			if (!seen)
 			{
 				const float multiplier2 = (code == 566) ? MinutesToSeconds : 1.0;
 				reply.printf("Maximum jerk rates (mm/%s): ", (code == 566) ? "min" : "sec");
@@ -3430,6 +3274,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				{
 					reply.catf("%c%.1f", sep, (double)(platform.GetInstantDv(extruder + numTotalAxes) * multiplier2));
 					sep = ':';
+				}
+				if (code == 566)
+				{
+					reply.catf(", jerk policy: %u", reprap.GetMove().GetJerkPolicy());
 				}
 			}
 		}
@@ -3616,18 +3464,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			const uint8_t inputType = (gb.Seen('S')) ? gb.GetUIValue() : 1;
 
 			unsigned int axesSeen = 0;
-
 			for (size_t axis = 0; axis < numTotalAxes; ++axis)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-
 					if (!LockMovementAndWaitForStandstill(gb))
 					{
 						return false;
 					}
 					++axesSeen;
-
 					const int ival = gb.GetIValue();
 					if (ival >= 0 && ival <= 3)
 					{
@@ -3641,9 +3486,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					}
 				}
 			}
+
 			if (axesSeen == 0)
 			{
-
 				reply.copy("Endstop configuration");
 				EndStopPosition config;
 				EndStopInputType inputType;
@@ -3937,7 +3782,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 			if (changed || changedMode)
 			{
-				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 				{
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 				}
@@ -4016,7 +3861,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 						move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, moveBuffer.coords);
 						ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 					}
-					if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+					if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 					{
 						ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 					}
@@ -4063,7 +3908,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, moveBuffer.coords);
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 				}
-				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 				{
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 				}
@@ -4095,6 +3940,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		result = platform.ProgramZProbe(gb, reply);
 		break;
 
+	case 675:
+		result = FindCenterOfCavity(gb, reply);
+		break;
+
 	case 701: // Load filament
 		result = LoadFilament(gb, reply);
 		break;
@@ -4119,32 +3968,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("No tool selected");
 		}
 		break;
-#ifdef BCN3D_DEV
-	case 704://enable changing filament mode
-		{
-			bool seen = false;
-			bool value = false;
-			gb.TryGetBValue('S', value, seen);
-			if (seen)
-			{
-				isChangingFilament = value;
-				platform.MessageF(GenericMessage, "Changing filament state: ");
-				if(!isChangingFilament){
-					platform.MessageF(Uart0_duet2, "M1093 S1\n");
-				}
-				platform.MessageF(GenericMessage, isChangingFilament?"On\n":"Off\n");
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-		}
-		break;
-	case 705://prepare load routine Edurne
-		result = Prep_FilamentLoad_Edurne(gb,reply);
-		break;
-	case 706://exec load routine Edurne
-		result = Exec_FilamentLoad_Edurne(gb,reply);
-		break;
-#endif
+
 #if SUPPORT_SCANNER
 	case 750: // Enable 3D scanner extension
 		reprap.GetScanner().Enable();
@@ -4307,11 +4131,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		result = GCodeResult::error;
 		break;
 #endif
-#ifdef BCN3D_DEV
-	case 770:
-		result = ConfiguteRFIDReader(gb, reply);
-		break;
-#endif
+
 	case 851: // Set Z probe offset, only for Marlin compatibility
 		{
 			ZProbe params = platform.GetCurrentZProbeParameters();
@@ -4558,268 +4378,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			platform.SoftwareReset(reason);			// doesn't return
 		}
 		break;
-	#ifdef BCN3D_DEV
-	case 1010:
-		//platform.MessageF(GenericMessage, "Request SpoolSupplier Status\n");
-		reprap.GetSpoolSupplier().SendtoPrinter(HttpMessage);
-		break;
-	case 1011:
-		reprap.GetSpoolSupplier().SendtoPrinter(ImmediateDirectUart0_duet2Message);
-		break;
-	case 1012:
-		platform.MessageF(Uart0_duet2, "M1061 B21992 R100 C27.2 S0.0\n");
-		break;
-	case 1040:
-		reprap.GetSpoolSupplier().PrintJSON(HttpMessage);
-		break;
-	case 1041:
-		reprap.GetSpoolSupplier().PrintJSON(ImmediateDirectUart0_duet2Message);
-		break;
-	case 1042:
-		reprap.GetSpoolSupplier().PrintStatus(HttpMessage);
-		break;
 
-	case 1060://enable Edurne MODE
-		{
-			bool seen = false;
-			bool value = false;
-			gb.TryGetBValue('S', value, seen);
-			if (seen)
-			{
-				reprap.GetSpoolSupplier().Set_Master_Status(value);
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-		}
-		break;
-	case 1061://Set edurne parameters
-		{
-			int32_t values[N_Spools];
-			uint32_t uvalues[N_Spools];
-			float temps_val[N_Spools];
-			size_t NumtoRecv = N_Spools;
-			if (gb.Seen('B'))
-			{
-
-				gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Spool_id(i,(uint32_t)uvalues[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('C'))
-			{
-
-				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Temp
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Update_Current_Temperature(i,temps_val[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('H'))
-			{
-
-				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Current Humidity
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Current_Humidity(i,temps_val[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('S'))
-			{
-
-				gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Target
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Target_Temperature(i,temps_val[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('R'))
-			{
-
-				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Spool_Remaining(i,(uint8_t)values[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('F'))
-			{
-
-				gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Spool_FRS(i,(int)values[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-			if (gb.Seen('L'))
-			{
-
-				gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
-				for(size_t i = 0; i<NumtoRecv;i++){
-					reprap.GetSpoolSupplier().Set_Loaded_flag(i,(uint8_t)uvalues[i]);
-				}
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-			}
-
-		}
-		break;
-
-	case 1080://load request to edurne
-		{
-			int spool = 0;
-			int extruder = 0;
-			if(gb.Seen('S')){
-				spool = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			if(gb.Seen('E')){
-				extruder = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			if((size_t)extruder >= MaxExtruders){
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			uint8_t rq[3]={0};
-			rq[0] = 55;
-			rq[1] = (uint8_t)spool;
-			rq[2] = (uint8_t)extruder;
-			reprap.GetFilamentHandler().Request(rq);
-		}
-		break;
-	case 1081://unload request to edurne
-		{
-			int spool = 0;
-			int extruder = 0;
-			if(gb.Seen('S')){
-				spool = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			if(gb.Seen('E')){
-				extruder = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			if((size_t)extruder >= MaxExtruders){
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			uint8_t rq[3]={0};
-			rq[0] = 155;
-			rq[1] = (uint8_t)spool;
-			rq[2] = (uint8_t)extruder;
-			reprap.GetFilamentHandler().Request(rq);
-		}
-		break;
-	case 1090://un/load request
-		{
-			int spool = 0;
-			int unload = 0;
-			if(gb.Seen('S')){
-				spool = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			if(gb.Seen('P')){
-				unload = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-
-			if(unload == 1){// load is requested
-				//check availability
-				if(!reprap.GetSpoolSupplier().Get_Spool_Available((size_t) spool)){
-					platform.MessageF(Uart0_duet2, "M1093 S3\n"); // Printer ack Filament not available
-				}
-
-			}
-
-
-			if(DoingFileMacro()){
-				platform.MessageF(Uart0_duet2, "M1093 S2\n"); // Printer ack ready
-			}else{
-				platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack busy
-			}
-		}
-		break;
-	case 1091://edurne must stop moving because printer FRS has been pressed
-		{
-			reprap.GetMove().Exit(); //Cancel all moves and reset
-			reprap.GetMove().Init();
-			//platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack
-		}
-		break;
-
-	case 1093:
-		{
-			int ack=0;
-			if(gb.Seen('S')){
-				ack = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			//reprap.GetPlatform().MessageF(HttpMessage, "recv ack\n");
-			reprap.GetFilamentHandler().SetAckState(ack);
-		}
-		break;
-	case 1094:// not busy
-		{
-			//reprap.GetPlatform().MessageF(HttpMessage, "recv busy\n");
-			reprap.GetFilamentHandler().SetBusyState(false);
-		}
-		break;
-	case 1095:// Confirm Loading
-		{
-			int spool = 0;
-			if(gb.Seen('S')){
-				spool = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 1);
-			reprap.GetPlatform().MessageF(HttpMessage, "Recv load confirmation\n");
-		}
-		break;
-	case 1096:// Confirm Unloading
-		{
-			int spool = 0;
-			if(gb.Seen('S')){
-				spool = (int)gb.GetIValue();
-			}else{
-				result = GCodeResult::badOrMissingParameter;
-				break;
-			}
-			reprap.GetPlatform().MessageF(HttpMessage, "Recv unload confirmation\n");
-			reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
-		}
-		break;
-	case 1097:// Send Ack
-		{
-			platform.MessageF(Uart0_duet2, "M1093 S1\n");
-		}
-		break;
-	#endif
 	default:
-
 		// See if there is a file in /sys named Mxx.g
 		if (code >= 0 && code < 10000)
 		{
@@ -4830,7 +4390,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				break;
 			}
 		}
-
 		result = GCodeResult::warningNotSupported;
 		break;
 	}

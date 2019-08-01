@@ -384,20 +384,19 @@ void Platform::Init()
 
 	for (size_t drive = 0; drive < MaxTotalDrivers; drive++)
 	{
-		enableValues[drive] = 0;					// assume active low enable signal
-		directions[drive] = true;					// drive moves forwards by default
+		enableValues[drive] = 0;									// assume active low enable signal
+		directions[drive] = true;									// drive moves forwards by default
 		motorCurrents[drive] = 0.0;
 		motorCurrentFraction[drive] = 1.0;
 		driverState[drive] = DriverStatus::disabled;
+		driveDriverBits[drive + MaxTotalDrivers] = CalcDriverBitmap(drive);
 
 		// Map axes and extruders straight through
-		driveDriverBits[drive] = driveDriverBits[drive + MaxTotalDrivers] = CalcDriverBitmap(drive);	// this returns 0 for remote drivers
+		driveDriverBits[drive] = CalcDriverBitmap(drive);			// this returns 0 for remote drivers
 		if (drive < MaxAxes)
 		{
 			axisDrivers[drive].numDrivers = 1;
 			axisDrivers[drive].driverNumbers[0] = (uint8_t)drive;
-			axisEndstops[drive].numEndstops = 1;
-			axisEndstops[drive].endstopNumbers[0] = (uint8_t)drive;
 			endStopPos[drive] = EndStopPosition::lowEndStop;		// default to low endstop
 			endStopInputType[drive] = EndStopInputType::activeHigh;	// assume all endstops use active high logic e.g. normally-closed switch to ground
 		}
@@ -407,9 +406,7 @@ void Platform::Init()
 			// Set up the control pins and endstops
 			pinMode(STEP_PINS[drive], OUTPUT_LOW);
 			pinMode(DIRECTION_PINS[drive], OUTPUT_LOW);
-
 #if !(defined(DUET3_V03) || defined(DUET3_V05))
-
 			pinMode(ENABLE_PINS[drive], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
 #endif
 
@@ -1168,16 +1165,9 @@ void Platform::SendAuxMessage(const char* msg)
 	OutputBuffer *buf;
 	if (OutputBuffer::Allocate(buf))
 	{
-#ifndef BCN3D_DEV
 		buf->copy("{\"message\":");
 		buf->EncodeString(msg, false);
 		buf->cat("}\n");
-#else
-		// change Send Messages for another duet
-		buf->copy("");
-		buf->cat(msg);
-		buf->cat("\n");
-#endif
 		auxOutput.Push(buf);
 		FlushAuxMessages();
 	}
@@ -1668,7 +1658,7 @@ void Platform::Spin()
 			// Check for attempts to move motors when not powered
 			if (warnDriversNotPowered)
 			{
-				Message(ErrorMessage, "Attempt to move motors when VIN is not in range");
+				Message(ErrorMessage, "Attempt to move motors when VIN is not in range\n");
 				warnDriversNotPowered = false;
 				reported = true;
 			}
@@ -2788,7 +2778,7 @@ EndStopHit Platform::Stopped(size_t axisOrExtruder) const
 			break;
 #endif
 
-   		case EndStopInputType::activeLow:
+		case EndStopInputType::activeLow:
 			if (axisOrExtruder < NumEndstops && endStopPins[axisOrExtruder] != NoPin)
 			{
 				const bool b = IoPort::ReadPin(endStopPins[axisOrExtruder]);
@@ -3564,7 +3554,6 @@ void Platform::GetEndStopConfiguration(size_t axis, EndStopPosition& esType, End
 	esType = endStopPos[axis];
 	inputType = endStopInputType[axis];
 }
-
 
 //-----------------------------------------------------------------------------------------------------
 

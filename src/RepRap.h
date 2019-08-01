@@ -25,12 +25,7 @@ Licence: GPL
 #include "ObjectModel/ObjectModel.h"
 #include "MessageType.h"
 #include "RTOSIface/RTOSIface.h"
-#ifdef BCN3D_DEV
-#include <RFID/SpoolRDIFReader.h>
-#include "SpoolSupplier/SpoolSupplier.h"
-#include <Heating/Sensors/HdcSensor.h>
-#include <Tools/FilamentHandler.h>
-#endif
+
 enum class ResponseSource
 {
 	HTTP,
@@ -85,8 +80,8 @@ public:
 	Tool* GetTool(int toolNumber) const;
 	Tool* GetCurrentOrDefaultTool() const;
 	const Tool* GetFirstTool() const { return toolList; }				// Return the lowest-numbered tool
-	uint32_t GetCurrentXAxes() const;									// Get the current axes used as X axes
-	uint32_t GetCurrentYAxes() const;									// Get the current axes used as Y axes
+	AxesBitmap GetCurrentXAxes() const;									// Get the current axes used as X axes
+	AxesBitmap GetCurrentYAxes() const;									// Get the current axes used as Y axes
 	bool IsHeaterAssignedToTool(int8_t heater) const;
 	unsigned int GetNumberOfContiguousTools() const;
 
@@ -103,12 +98,7 @@ public:
 	Roland& GetRoland() const;
 	Scanner& GetScanner() const;
 	PrintMonitor& GetPrintMonitor() const;
-#ifdef BCN3D_DEV
-	SpoolRDIF_Reader& GetTagReaderWriter() const;
-	SpoolSupplier& GetSpoolSupplier() const;
-	HdcSensorHardwareInterface& GetHdcSensorHardwareInterface() const;
-	FilamentHandler& GetFilamentHandler() const;
-#endif
+
 #if SUPPORT_IOBITS
  	PortControl& GetPortControl() const;
 #endif
@@ -169,12 +159,7 @@ private:
 	Roland* roland;
 	Scanner* scanner;
  	PrintMonitor* printMonitor;
-#ifdef BCN3D_DEV
- 	SpoolRDIF_Reader* tagreaderwriter;
- 	SpoolSupplier* spoolsupplier;
- 	HdcSensorHardwareInterface* hdcsensorhi;
- 	FilamentHandler* filamenthandler;
-#endif
+
 #if SUPPORT_IOBITS
  	PortControl *portControl;
 #endif
@@ -226,12 +211,7 @@ inline Network& RepRap::GetNetwork() const { return *network; }
 inline Roland& RepRap::GetRoland() const { return *roland; }
 inline Scanner& RepRap::GetScanner() const { return *scanner; }
 inline PrintMonitor& RepRap::GetPrintMonitor() const { return *printMonitor; }
-#ifdef BCN3D_DEV
-inline SpoolRDIF_Reader& RepRap::GetTagReaderWriter() const { return *tagreaderwriter; }
-inline SpoolSupplier& RepRap::GetSpoolSupplier() const { return *spoolsupplier; }
-inline HdcSensorHardwareInterface& RepRap::GetHdcSensorHardwareInterface() const { return *hdcsensorhi; }
-inline FilamentHandler& RepRap::GetFilamentHandler() const { return *filamenthandler; }
-#endif
+
 #if SUPPORT_IOBITS
 inline PortControl& RepRap::GetPortControl() const { return *portControl; }
 #endif

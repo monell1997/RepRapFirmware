@@ -128,7 +128,7 @@ constexpr size_t MaxSpiTempSensors = 8;
 constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { 28, 50, 51, 52, 24, 97, 98, 99 };	// SPI0_CS1, SPI0_CS2, CS3, CS4, CS5, CS6, CS7, CS8
 
 #endif
-constexpr size_t Maxi2cTempSensors = 4;
+
 // Pin that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = 79;
 

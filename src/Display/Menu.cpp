@@ -359,13 +359,13 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 		const char *const acText = AppendString(text);
 		MenuItem * const pNewItem = new TextMenuItem(row, column, width, alignment, fontNumber, xVis, acText);
 		AddItem(pNewItem, false);
-		column += pNewItem->GetWidth() + 1;
+		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "image") && fname != nullptr)
 	{
 		ImageMenuItem * const pNewItem = new ImageMenuItem(row, column, xVis, fname);
 		AddItem(pNewItem, false);
-		column += pNewItem->GetWidth() + 1;
+		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "button"))
 	{
@@ -374,19 +374,19 @@ const char *Menu::ParseMenuLine(char * const commandWord)
 		const char * const c_acFileString = AppendString(fname);
 		ButtonMenuItem * const pNewItem = new ButtonMenuItem(row, column, width, fontNumber, xVis, textString, actionString, c_acFileString);
 		AddItem(pNewItem, true);
-		column += pNewItem->GetWidth() + 1;
+		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "value"))
 	{
 		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, xVis, false, nparam, decimals);
 		AddItem(pNewItem, false);
-		column += pNewItem->GetWidth() + 1;
+		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "alter"))
 	{
 		ValueMenuItem * const pNewItem = new ValueMenuItem(row, column, width, alignment, fontNumber, xVis, true, nparam, decimals);
 		AddItem(pNewItem, true);
-		column += pNewItem->GetWidth() + 1;
+		column += pNewItem->GetWidth();
 	}
 	else if (StringEqualsIgnoreCase(commandWord, "files"))
 	{

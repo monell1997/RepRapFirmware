@@ -37,12 +37,12 @@ const char feedrateLetter = 'F';						// GCode feedrate
 const char extrudeLetter = 'E'; 						// GCode extrude
 
 // Type for specifying which endstops we want to check
-typedef AxesBitmap EndstopChecks;						// must be large enough to hold a bitmap of drive numbers or ZProbeActive
-const EndstopChecks ZProbeActive = 1 << 31;				// must be distinct from 1 << (any drive number)
-const EndstopChecks HomeAxes = 1 << 30;					// must be distinct from 1 << (any drive number)
-const EndstopChecks LogProbeChanges = 1 << 29;			// must be distinct from 1 << (any drive number)
-const EndstopChecks UseSpecialEndstop = 1 << 28;		// must be distinct from 1 << (any drive number)
-const EndstopChecks ActiveLowEndstop = 1 << 27;			// must be distinct from 1 << (any drive number)
+typedef uint32_t EndstopsBitmap;						// must be large enough to hold a bitmap of drive numbers or ZProbeActive
+const EndstopsBitmap ZProbeActive = 1 << 31;			// must be distinct from 1 << (any drive number)
+const EndstopsBitmap HomeAxes = 1 << 30;				// must be distinct from 1 << (any drive number)
+const EndstopsBitmap LogProbeChanges = 1 << 29;			// must be distinct from 1 << (any drive number)
+const EndstopsBitmap UseSpecialEndstop = 1 << 28;		// must be distinct from 1 << (any drive number)
+const EndstopsBitmap ActiveLowEndstop = 1 << 27;		// must be distinct from 1 << (any drive number)
 
 typedef uint32_t TriggerInputsBitmap;					// Bitmap of input pins that a single trigger number responds to
 typedef uint32_t TriggerNumbersBitmap;					// Bitmap of trigger numbers
@@ -124,7 +124,7 @@ public:
 		float proportionLeft;											// what proportion of the entire move remains after this segment
 		AxesBitmap xAxes;												// axes that X is mapped to
 		AxesBitmap yAxes;												// axes that Y is mapped to
-		EndstopChecks endStopsToCheck;									// endstops to check
+		EndstopsBitmap endStopsToCheck;									// endstops to check
 #if SUPPORT_LASER || SUPPORT_IOBITS
 		LaserPwmOrIoBits laserPwmOrIoBits;								// the laser PWM or port bit settings required
 #endif
@@ -158,13 +158,11 @@ public:
 	bool RunConfigFile(const char* fileName);							// Start running the config file
 	bool IsDaemonBusy() const;											// Return true if the daemon is busy running config.g or a trigger file
 
-	bool GetAxisIsHomed(unsigned int axis) const						// Has the axis been homed?
+	bool IsAxisHomed(unsigned int axis) const							// Has the axis been homed?
 		{ return IsBitSet(axesHomed, axis); }
 	void SetAxisIsHomed(unsigned int axis);								// Tell us that the axis is now homed
-	void SetAxisNotHomed(unsigned int axis)								// Tell us that the axis is not homed
-		{ ClearBit(axesHomed, axis); }
-	void SetAllAxesNotHomed()											// Flag all axes as not homed
-		{ axesHomed = 0; }
+	void SetAxisNotHomed(unsigned int axis);							// Tell us that the axis is not homed
+	void SetAllAxesNotHomed();											// Flag all axes as not homed
 
 	float GetSpeedFactor() const;										// Return the current speed factor
 #if SUPPORT_12864_LCD
@@ -177,7 +175,7 @@ public:
 	float GetTotalRawExtrusion() const { return rawExtruderTotal; }		// Get the total extrusion since start of print, all drives
 	float GetTotalBabyStepOffset(size_t axis) const
 		pre(axis < maxAxes);
-	const float *GetUserPosition() const { return currentUserPosition; } // Return the current user position
+	float GetUserCoordinate(size_t axis) const;							// Get the current user coordinate in the current workspace coordinate system
 
 #if HAS_NETWORKING
 	NetworkGCodeInput *GetHTTPInput() const { return httpInput; }
@@ -241,13 +239,7 @@ public:
 #if SUPPORT_WORKPLACE_COORDINATES
 	unsigned int GetWorkplaceCoordinateSystemNumber() const { return currentCoordinateSystem + 1; }
 #endif
-#ifdef BCN3D_DEV
-	void Exec_pushboth_b_Edurne();										//BCN3D method for pushing E printer and edurne together back
-	void Exec_pushboth_f_Edurne();										//BCN3D method for pushing E printer and edurne together forward
-	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
-	void Exec_unloadsync_Edurne();										//BCN3D unloadsync
-	void autoresume_Edurne();											//Auto resume
-#endif
+
 protected:
 	DECLARE_OBJECT_MODEL
 
@@ -309,24 +301,16 @@ private:
 	void InitialiseTaps();														// Set up to do the first of a possibly multi-tap probe
 	void SetBedEquationWithProbe(int sParam, const StringRef& reply);			// Probes a series of points and sets the bed equation
 	GCodeResult SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply);		// Either return the probe value, or set its threshold
-	#ifdef BCN3D_DEV
-	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
-	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
-	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
-	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);   // BCN3D method to configure SPI for RFID r/w
-	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
-	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
-
-	#endif
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
 	GCodeResult ProbeTool(GCodeBuffer& gb, const StringRef& reply);				// Deal with a M585
+	GCodeResult FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply, const bool towardsMin = true);	// Deal with a M675
 	GCodeResult SetDateTime(GCodeBuffer& gb,const  StringRef& reply);			// Deal with a M905
 	GCodeResult SavePosition(GCodeBuffer& gb,const  StringRef& reply);			// Deal with G60
 	GCodeResult ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply);		// Deal with M569
 
-	bool LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb);					// Set up the extrusion of a move
+	bool LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove);	// Set up the extrusion of a move
 
 	bool Push(GCodeBuffer& gb);													// Push feedrate etc on the stack
 	void Pop(GCodeBuffer& gb);													// Pop feedrate etc
@@ -359,9 +343,11 @@ private:
 
 	void SetMachinePosition(const float positionNow[MaxTotalDrivers], bool doBedCompensation = true); // Set the current position to be this
 	void UpdateCurrentUserPosition();											// Get the current position from the Move class
-	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0, bool applyWorkplaceOffsets = true);
+	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0) const;
 																				// Convert user coordinates to head reference point coordinates
-	void ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes]);	// Convert head reference point coordinates to user coordinates
+	void ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes]) const;	// Convert head reference point coordinates to user coordinates
+	float GetCurrentToolOffset(size_t axis) const;								// Get an axis offset of the current tool
+
 	const char *TranslateEndStopResult(EndStopHit es);							// Translate end stop result to text
 	GCodeResult RetractFilament(GCodeBuffer& gb, bool retract);					// Retract or un-retract filaments
 	GCodeResult LoadFilament(GCodeBuffer& gb, const StringRef& reply);			// Load the specified filament into a tool
@@ -386,19 +372,14 @@ private:
 	GCodeResult SetOrReportZProbe(GCodeBuffer& gb, const StringRef &reply);		// Handle M558
 	GCodeResult DefineGrid(GCodeBuffer& gb, const StringRef &reply);			// Define the probing grid, returning true if error
 	GCodeResult LoadHeightMap(GCodeBuffer& gb, const StringRef& reply);			// Load the height map from file
-	bool SaveHeightMap(GCodeBuffer& gb, const StringRef& reply) const;			// Save the height map to file
+	bool TrySaveHeightMap(const char *filename, const StringRef& reply) const;	// Save the height map to the specified file
+	GCodeResult SaveHeightMap(GCodeBuffer& gb, const StringRef& reply) const;	// Save the height map to the file specified by P parameter
 	void ClearBedMapping();														// Stop using bed compensation
 	GCodeResult ProbeGrid(GCodeBuffer& gb, const StringRef& reply);				// Start probing the grid, returning true if we didn't because of an error
 	GCodeResult CheckOrConfigureTrigger(GCodeBuffer& gb, const StringRef& reply, int code);	// Handle M581 and M582
 	GCodeResult UpdateFirmware(GCodeBuffer& gb, const StringRef &reply);		// Handle M997
 	GCodeResult SendI2c(GCodeBuffer& gb, const StringRef &reply);				// Handle M260
 	GCodeResult ReceiveI2c(GCodeBuffer& gb, const StringRef &reply);			// Handle M261
-	uint8_t CommI2c_M24C02_read_byte(uint32_t addr, uint8_t bValues);			// Handle M262
-	uint8_t CommI2c_M24C02_write_byte(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.1
-	uint8_t CommI2c_M24C02_erase_page(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.2
-	GCodeResult CommI2C_M24C02_store_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M265
-	GCodeResult CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M266
-	GCodeResult CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &reply);		// Handle M263
 	GCodeResult SimulateFile(GCodeBuffer& gb, const StringRef &reply, const StringRef& file, bool updateFile);	// Handle M37 to simulate a whole file
 	GCodeResult ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply, uint32_t newSimulationMode);		// Handle M37 to change the simulation mode
 
@@ -430,6 +411,7 @@ private:
 #endif
 	Pwm_t ConvertLaserPwm(float reqVal) const;
 
+	// This function is called by other functions to account correctly for workplace coordinates, depending on whether the build configuration supports them.
 	inline float GetWorkplaceOffset(size_t axis) const
 	{
 #if SUPPORT_WORKPLACE_COORDINATES
@@ -445,7 +427,6 @@ private:
 #endif
 
 	Platform& platform;													// The RepRap machine
-	//TagReaderWriter& tagreaderwriter;									// The tagreader
 
 	FileGCodeInput* fileInput;											// ...
 	StreamGCodeInput* serialInput;										// ...
@@ -487,7 +468,10 @@ private:
 	char *powerFailScript;						// the commands run when there is a power failure
 #endif
 
-	float currentUserPosition[MaxAxes];			// The current position of the axes as commanded by the input gcode, before accounting for tool offset and Z hop
+	// The current user position now holds the requested user position after applying workplace coordinate offsets.
+	// So we must subtract the workplace coordinate offsets when we want to display them.
+	// We have chosen this approach because it allows us to switch workplace coordinates systems or turn off applying workplace offsets without having to update currentUserPosition.
+	float currentUserPosition[MaxAxes];			// The current position of the axes as commanded by the input gcode, after accounting for workplace offset, before accounting for tool offset and Z hop
 	float currentZHop;							// The amount of Z hop that is currently applied
 	float lastPrintingMoveHeight;				// the Z coordinate in the last printing move, or a negative value if we don't know it
 
@@ -522,6 +506,7 @@ private:
 	RestorePoint numberedRestorePoints[NumRestorePoints];				// Restore points accessible using the R parameter in the G0/G1 command
 	RestorePoint& pauseRestorePoint = numberedRestorePoints[1];			// The position and feed rate when we paused the print
 	RestorePoint& toolChangeRestorePoint = numberedRestorePoints[2];	// The position and feed rate when we freed a tool
+	RestorePoint& findCenterOfCavityRestorePoint = numberedRestorePoints[3];	// The position and feed rate when we found the lower boundary of cavity
 
 	size_t numTotalAxes;						// How many axes we have
 	size_t numVisibleAxes;						// How many axes are visible
@@ -573,6 +558,7 @@ private:
 	bool doingManualBedProbe;					// true if we are waiting for the user to jog the nozzle until it touches the bed
 	bool probeIsDeployed;						// true if M401 has been used to deploy the probe and M402 has not yet been used t0 retract it
 	bool hadProbingError;						// true if there was an error probing the last point
+	bool zDatumSetByProbing;					// true if the Z position was last set by probing, not by an endstop switch or by G92
 	uint8_t tapsDone;							// how many times we tapped the current point
 
 	float simulationTime;						// Accumulated simulation time
@@ -610,18 +596,10 @@ private:
 	FilamentSensorStatus lastFilamentError;
 	size_t lastFilamentErrorExtruder;
 
-
-
 	// Laser
 	float laserMaxPower;
 	bool laserPowerSticky;						// true if G1 S parameters are remembered across G1 commands
 
-#ifdef BCN3D_DEV
-	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
-	int xyz_Bcn3dCalib_Samples_Count = 0;						// Must count 4
-	float xyz_Bcn3dCalib_SaveMotorStepPos[4][MaxAxes]; 	// Save 2 coordinates
-	bool xyz_Bcn3dCalib_Save = false;
-#endif
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
 	uint32_t heaterFaultTime;					// when the heater fault occurred
@@ -630,7 +608,6 @@ private:
 	// Misc
 	uint32_t lastWarningMillis;					// When we last sent a warning message for things that can happen very often
 	AxesBitmap axesToSenseLength;				// The axes on which we are performing axis length sensing
-	bool axesToSenseLength_flag = false;		// Set the flag for sensing positioning BCN3D 07/02/2019
 
 	static constexpr uint32_t SdTimingByteIncrement = 8 * 1024;	// how many timing bytes we write at a time
 	static constexpr const char *TimingFileName = "test.tst";	// the name of the file we write
@@ -644,9 +621,6 @@ private:
 	bool cancelWait;							// Set true to cancel waiting
 	bool displayNoToolWarning;					// True if we need to display a 'no tool selected' warning
 	bool m501SeenInConfigFile;					// true if M501 was executed form config.g
-#ifdef BCN3D_DEV
-	bool isChangingFilament;
-#endif
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
 
 	// Standard macro filenames
@@ -667,14 +641,6 @@ private:
 	static constexpr const char* RESUME_AFTER_POWER_FAIL_G = "resurrect.g";
 	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
-	#ifdef BCN3D_DEV
-	static constexpr const char* EDURNE_LOAD_G  = "loadroutine.g";
-	static constexpr const char* EDURNE_UNLOAD_G = "unloadroutine.g";
-	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
-	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
-	static constexpr const char* RESUME_AUTO_G = "autoresume.g";
-	#endif
-
 #if HAS_SMART_DRIVERS
 	static constexpr const char* REHOME_G = "rehome.g";
 #endif

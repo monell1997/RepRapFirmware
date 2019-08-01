@@ -21,7 +21,8 @@ constexpr size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_INKJET		0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		0					// set nonzero to support Roland mill
 #define SUPPORT_SCANNER		0					// set nonzero to support FreeLSS scanners
-#define SUPPORT_DHT_SENSOR	1					// set nonzero to support DHT temperature/humidity sensors
+#define SUPPORT_DHT_SENSOR	0					// set nonzero to support DHT temperature/humidity sensors
+#define SUPPORT_LASER		1					// set nonzero to support laser cutters
 
 // The physical capabilities of the machine
 constexpr size_t NumDirectDrivers = 9;
@@ -109,8 +110,6 @@ constexpr size_t MaxSpiTempSensors = 4;
 constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { 77, 87, 16, 17 };
 
 #endif
-
-constexpr size_t Maxi2cTempSensors = 4;
 
 // Arduino Due pin number that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = 12;											// Arduino Due pin number that controls the ATX power on/off

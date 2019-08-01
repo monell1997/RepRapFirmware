@@ -66,10 +66,6 @@ public:
 	// Send diagnostics info
 	static void Diagnostics(MessageType mtype);
 
-#ifdef BCN3D_DEV
-	static FilamentSensorStatus GetFilamentMonitorState(uint8_t extruder);
-#endif
-
 protected:
 	FilamentMonitor(unsigned int extruder, int t) : extruderNumber(extruder), type(t), pin(NoPin) { }
 

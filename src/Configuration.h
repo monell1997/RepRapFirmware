@@ -111,18 +111,18 @@ constexpr int8_t DefaultE0Heater = 0;					// Index of the default first extruder
 #elif SAM4E || SAME70
 
 constexpr size_t NumBedHeaters = 4;
-constexpr size_t NumChamberHeaters = 3;
+constexpr size_t NumChamberHeaters = 2;
 constexpr int8_t DefaultBedHeaters[NumBedHeaters] = { 0, -1, -1, -1 };
-constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1, -1};
+constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1 };
 
 constexpr int8_t DefaultE0Heater = 1;					// Index of the default first extruder heater, used only for the legacy status response
 
 #else
 
 constexpr size_t NumBedHeaters = 1;
-constexpr size_t NumChamberHeaters = 3;
+constexpr size_t NumChamberHeaters = 2;
 constexpr int8_t DefaultBedHeaters[NumBedHeaters] = { 0 };
-constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1, -1};
+constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1 };
 
 constexpr int8_t DefaultE0Heater = 1;					// Index of the default first extruder heater, used only for the legacy status response
 
@@ -160,9 +160,6 @@ constexpr unsigned int FirstPT1000Channel = 500;		// Temperature sensor channels
 constexpr unsigned int CpuTemperatureSenseChannel = 1000;  // Sensor 1000 is the MCU's own temperature sensor
 constexpr unsigned int FirstTmcDriversSenseChannel = 1001; // Sensors 1001..1002 are the TMC2660 driver temperature sense
 constexpr unsigned int NumTmcDriversSenseChannels = 2;	// Sensors 1001..1002 are the TMC2660 driver temperature sense
-constexpr unsigned int FirstHDC1010Channel = 1010; 		// I2C sensor temperature
-constexpr unsigned int FirstHDC1011TempChannel = 1050; 		// I2C sensor temperature
-constexpr unsigned int FirstHDC1011HumChannel = 1100; 		// I2C sensor hum
 
 // PWM frequencies
 constexpr unsigned int SlowHeaterPwmFreq = 10;			// slow PWM frequency for bed and chamber heaters, compatible with DC/AC SSRs
@@ -241,6 +238,7 @@ constexpr size_t MaxVariableNameLength = 100;
 
 constexpr size_t StringLength20 = 20;
 constexpr size_t StringLength40 = 40;
+constexpr size_t StringLength500 = 500;					// Used when writing the height map
 
 constexpr size_t MaxHeaterNameLength = StringLength20;	// Maximum number of characters in a heater name
 constexpr size_t MaxFanNameLength = StringLength20;		// Maximum number of characters in a fan name
@@ -302,7 +300,7 @@ constexpr float DefaultIdleCurrentFactor = 0.3;			// Proportion of normal motor 
 constexpr float DefaultNonlinearExtrusionLimit = 0.2;	// Maximum additional commanded extrusion to compensate for nonlinearity
 constexpr size_t NumRestorePoints = 6;					// Number of restore points, must be at least 3
 
-constexpr float AxisRoundingError = 0.05;				// Maximum possible error when we round trip a machine position to motor coordinates and back
+constexpr float AxisRoundingError = 0.02;				// Maximum possible error when we round trip a machine position to motor coordinates and back
 
 // Triggers
 constexpr unsigned int MaxTriggers = 16;				// Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
@@ -370,15 +368,5 @@ constexpr size_t FILE_BUFFER_SIZE = 128;
 constexpr char LIST_SEPARATOR = ':';
 constexpr char FILE_LIST_SEPARATOR = ',';
 constexpr char FILE_LIST_BRACKET = '"';
-
-
-// Firmware Mod definitions
-#define BCN3D_DEV
-
-#ifdef BCN3D_DEV
-	#ifndef RTOS
-		#define RTOS
-	#endif
-#endif
 
 #endif
