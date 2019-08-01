@@ -290,6 +290,85 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		DoFileMacro(gb, BED_EQUATION_G, true);	// Try to execute bed.g
 		break;
 
+#ifdef BCN3D_DEV
+	case 33: //Set the current Z Position as the Z-probe offset
+
+			result = SetPrintZprobe_Zoffset_BCN3D(gb, reply);
+
+			break;
+
+	case 34: //Auto XY calib BCN3D
+
+		result = FindXYOffet_BCN3D(gb, reply);
+
+		break;
+
+	case 35: //Auto XY calib BCN3D
+
+		if (gb.Seen(axisLetters[X_AXIS]))
+		{
+			//Save Value
+
+			platform.MessageF(GenericMessage, "X position triggered is %0.2f \n",(double) currentUserPosition[X_AXIS]);
+
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][X_AXIS]=currentUserPosition[X_AXIS];
+
+			xyz_Bcn3dCalib_Samples_Count++;
+			if(xyz_Bcn3dCalib_Samples_Count == 4){
+				xyz_Bcn3dCalib_Samples_Count = 0;
+				if(gb.Seen('S')){
+					xyz_Bcn3dCalib_Save = true;
+				}
+				gb.SetState(GCodeState::x_calib_bcn3d);
+			}
+
+
+		}else if (gb.Seen(axisLetters[Y_AXIS]))
+		{
+			//Save Value
+			platform.MessageF(GenericMessage, "Y position triggered is %0.2f \n",(double) currentUserPosition[Y_AXIS]);
+
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Y_AXIS]=currentUserPosition[Y_AXIS];
+
+			xyz_Bcn3dCalib_Samples_Count++;
+			if(xyz_Bcn3dCalib_Samples_Count == 4){
+				xyz_Bcn3dCalib_Samples_Count = 0;
+				if(gb.Seen('S')){
+					xyz_Bcn3dCalib_Save = true;
+				}
+
+				gb.SetState(GCodeState::y_calib_bcn3d);
+			}
+
+		}else if (gb.Seen(axisLetters[Z_AXIS]))
+		{
+			//Save Value
+			platform.MessageF(GenericMessage, "Z position triggered is %0.2f \n",(double) (currentUserPosition[Z_AXIS]));
+			xyz_Bcn3dCalib_SaveMotorStepPos[xyz_Bcn3dCalib_Samples_Count][Z_AXIS]=currentUserPosition[Z_AXIS];
+
+			xyz_Bcn3dCalib_Samples_Count++;
+
+			if(xyz_Bcn3dCalib_Samples_Count == 2){
+
+				xyz_Bcn3dCalib_Samples_Count = 0;
+
+				if(gb.Seen('S')){
+					xyz_Bcn3dCalib_Save = true;
+				}
+				gb.SetState(GCodeState::z_calib_bcn3d);
+			}
+
+
+
+		}else{
+			reply.copy("Not X or Y axes has been selected");
+			result =  GCodeResult::error;
+		}
+
+
+		break;
+#endif
+
 	case 53:	// Temporarily use machine coordinates
 		gb.MachineState().g53Active = true;
 		break;
@@ -1680,7 +1759,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 				if (code == 141)
 				{
+#ifdef BCN3D_DEV
+					int slave = heater;
+					if (gb.Seen('E')){
+						slave = gb.GetIValue();
+					}
+					platform.MessageF(GenericMessage,"%d\n",slave);
+					heat.SetChamberHeater(index, heater, slave);
+#else
 					heat.SetChamberHeater(index, heater);
+#endif
 				}
 				else
 				{
@@ -2166,6 +2254,73 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 261:	// I2C send
 		result = ReceiveI2c(gb, reply);
 		break;
+
+#ifdef BCN3D_DEV
+	case 262:	// I2C report memory data from i2c address
+		{
+
+			if (gb.Seen('A')){
+				uint32_t address = gb.GetUIValue();
+				if (address < 0 && address > 255){
+					result = GCodeResult::badOrMissingParameter;
+				}else{
+					for (int j = 0; j < 16; j++){
+						for (int i = 0; i < 16; i++){
+							platform.MessageF(GenericMessage, " : ");
+							platform.MessageF(GenericMessage, "%02x",CommI2c_M24C02_read_byte( address,(16*j+i)));
+							platform.MessageF(GenericMessage, " : ");
+
+						}
+						platform.MessageF(GenericMessage, "\n");
+					}
+				}
+			}
+
+		}
+
+		break;
+	case 263:	// I2C write page to the memory
+		{
+			result = CommI2C_M24C02_write_page(gb, reply);
+		}
+		break;
+
+	case 264:	// I2C erase memory do not use this command during a print job
+		{
+
+			if (gb.Seen('A')){
+				uint32_t address = gb.GetUIValue();
+				if (address < 0 && address > 255){
+					result = GCodeResult::badOrMissingParameter;
+				}else{
+					for (int j = 0; j < 16; j++){
+
+						if(CommI2c_M24C02_erase_page( address,(16*j), 255) == 0){ // Set 0xff to all the memory
+							reply.printf("EEPROM erasing failure, device: %d \n", (int)address);
+							result = GCodeResult::error;
+							break;
+						}
+						delay(5);
+					}
+					reply.printf("EEPROM erasing Success, device: %d \n", (int)address);
+					result = GCodeResult::ok;
+				}
+			}
+
+		}
+
+		break;
+	case 265: // Save Current Real Time
+		{
+			result = CommI2C_M24C02_store_currentdate(gb, reply);
+		}
+		break;
+	case 266: // Show Current Date saved
+		{
+			result = CommI2C_M24C02_recover_currentdate(gb, reply);
+		}
+		break;
+#endif
 
 	case 280:	// Servos
 		if (gb.Seen('P'))
@@ -3968,7 +4123,32 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("No tool selected");
 		}
 		break;
-
+#ifdef BCN3D_DEV
+	case 704://enable changing filament mode
+		{
+			bool seen = false;
+			bool value = false;
+			gb.TryGetBValue('S', value, seen);
+			if (seen)
+			{
+				isChangingFilament = value;
+				platform.MessageF(GenericMessage, "Changing filament state: ");
+				if(!isChangingFilament){
+					platform.MessageF(Uart0_duet2, "M1093 S1\n");
+				}
+				platform.MessageF(GenericMessage, isChangingFilament?"On\n":"Off\n");
+			}else{
+				result = GCodeResult::badOrMissingParameter;
+			}
+		}
+		break;
+	case 705://prepare load routine Edurne
+		result = Prep_FilamentLoad_Edurne(gb,reply);
+		break;
+	case 706://exec load routine Edurne
+		result = Exec_FilamentLoad_Edurne(gb,reply);
+		break;
+#endif
 #if SUPPORT_SCANNER
 	case 750: // Enable 3D scanner extension
 		reprap.GetScanner().Enable();
@@ -4131,7 +4311,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		result = GCodeResult::error;
 		break;
 #endif
-
+#ifdef BCN3D_DEV
+	case 770:
+		result = ConfiguteRFIDReader(gb, reply);
+		break;
+#endif
 	case 851: // Set Z probe offset, only for Marlin compatibility
 		{
 			ZProbe params = platform.GetCurrentZProbeParameters();
@@ -4378,7 +4562,266 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			platform.SoftwareReset(reason);			// doesn't return
 		}
 		break;
+#ifdef BCN3D_DEV
+case 1010:
+	//platform.MessageF(GenericMessage, "Request SpoolSupplier Status\n");
+	reprap.GetSpoolSupplier().SendtoPrinter(HttpMessage);
+	break;
+case 1011:
+	reprap.GetSpoolSupplier().SendtoPrinter(ImmediateDirectUart0_duet2Message);
+	break;
+case 1012:
+	platform.MessageF(Uart0_duet2, "M1061 B21992 R100 C27.2 S0.0\n");
+	break;
+case 1040:
+	reprap.GetSpoolSupplier().PrintJSON(HttpMessage);
+	break;
+case 1041:
+	reprap.GetSpoolSupplier().PrintJSON(ImmediateDirectUart0_duet2Message);
+	break;
+case 1042:
+	reprap.GetSpoolSupplier().PrintStatus(HttpMessage);
+	break;
 
+case 1060://enable Edurne MODE
+	{
+		bool seen = false;
+		bool value = false;
+		gb.TryGetBValue('S', value, seen);
+		if (seen)
+		{
+			reprap.GetSpoolSupplier().Set_Master_Status(value);
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+	}
+	break;
+case 1061://Set edurne parameters
+	{
+		int32_t values[N_Spools];
+		uint32_t uvalues[N_Spools];
+		float temps_val[N_Spools];
+		size_t NumtoRecv = N_Spools;
+		if (gb.Seen('B'))
+		{
+
+			gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Spool_id(i,(uint32_t)uvalues[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('C'))
+		{
+
+			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Temp
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Update_Current_Temperature(i,temps_val[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('H'))
+		{
+
+			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Current Humidity
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Current_Humidity(i,temps_val[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('S'))
+		{
+
+			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Target
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Target_Temperature(i,temps_val[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('R'))
+		{
+
+			gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Spool_Remaining(i,(uint8_t)values[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('F'))
+		{
+
+			gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Spool_FRS(i,(int)values[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+		if (gb.Seen('L'))
+		{
+
+			gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
+			for(size_t i = 0; i<NumtoRecv;i++){
+				reprap.GetSpoolSupplier().Set_Loaded_flag(i,(uint8_t)uvalues[i]);
+			}
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+		}
+
+	}
+	break;
+
+case 1080://load request to edurne
+	{
+		int spool = 0;
+		int extruder = 0;
+		if(gb.Seen('S')){
+			spool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		if(gb.Seen('E')){
+			extruder = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		if((size_t)extruder >= MaxExtruders){
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		uint8_t rq[3]={0};
+		rq[0] = 55;
+		rq[1] = (uint8_t)spool;
+		rq[2] = (uint8_t)extruder;
+		reprap.GetFilamentHandler().Request(rq);
+	}
+	break;
+case 1081://unload request to edurne
+	{
+		int spool = 0;
+		int extruder = 0;
+		if(gb.Seen('S')){
+			spool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		if(gb.Seen('E')){
+			extruder = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		if((size_t)extruder >= MaxExtruders){
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		uint8_t rq[3]={0};
+		rq[0] = 155;
+		rq[1] = (uint8_t)spool;
+		rq[2] = (uint8_t)extruder;
+		reprap.GetFilamentHandler().Request(rq);
+	}
+	break;
+case 1090://un/load request
+	{
+		int spool = 0;
+		int unload = 0;
+		if(gb.Seen('S')){
+			spool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		if(gb.Seen('P')){
+			unload = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+
+		if(unload == 1){// load is requested
+			//check availability
+			if(!reprap.GetSpoolSupplier().Get_Spool_Available((size_t) spool)){
+				platform.MessageF(Uart0_duet2, "M1093 S3\n"); // Printer ack Filament not available
+			}
+
+		}
+
+
+		if(DoingFileMacro()){
+			platform.MessageF(Uart0_duet2, "M1093 S2\n"); // Printer ack ready
+		}else{
+			platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack busy
+		}
+	}
+	break;
+case 1091://edurne must stop moving because printer FRS has been pressed
+	{
+		reprap.GetMove().Exit(); //Cancel all moves and reset
+		reprap.GetMove().Init();
+		//platform.MessageF(Uart0_duet2, "M1093 S1\n"); // Printer ack
+	}
+	break;
+
+case 1093:
+	{
+		int ack=0;
+		if(gb.Seen('S')){
+			ack = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		//reprap.GetPlatform().MessageF(HttpMessage, "recv ack\n");
+		reprap.GetFilamentHandler().SetAckState(ack);
+	}
+	break;
+case 1094:// not busy
+	{
+		//reprap.GetPlatform().MessageF(HttpMessage, "recv busy\n");
+		reprap.GetFilamentHandler().SetBusyState(false);
+	}
+	break;
+case 1095:// Confirm Loading
+	{
+		int spool = 0;
+		if(gb.Seen('S')){
+			spool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 1);
+		reprap.GetPlatform().MessageF(HttpMessage, "Recv load confirmation\n");
+	}
+	break;
+case 1096:// Confirm Unloading
+	{
+		int spool = 0;
+		if(gb.Seen('S')){
+			spool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		reprap.GetPlatform().MessageF(HttpMessage, "Recv unload confirmation\n");
+		reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
+	}
+	break;
+case 1097:// Send Ack
+	{
+		platform.MessageF(Uart0_duet2, "M1093 S1\n");
+	}
+	break;
+#endif
 	default:
 		// See if there is a file in /sys named Mxx.g
 		if (code >= 0 && code < 10000)

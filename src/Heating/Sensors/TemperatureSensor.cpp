@@ -18,6 +18,11 @@
 #include "TmcDriverTemperatureSensor.h"
 #endif
 
+#ifdef BCN3D_DEV
+#include "HDC1010Sensor.h"
+#include <Heating/Sensors/HdcSensor.h>
+#endif
+
 // Constructor
 TemperatureSensor::TemperatureSensor(unsigned int chan, const char *t) : sensorChannel(chan), sensorType(t), heaterName(nullptr), lastError(TemperatureError::success) {}
 
@@ -144,6 +149,20 @@ TemperatureSensor *TemperatureSensor::Create(unsigned int channel)
 	}
 #endif
 
+#ifdef BCN3D_DEV
+	else if (channel >= FirstHDC1010Channel && channel < FirstHDC1010Channel + Maxi2cTempSensors)
+	{
+		ts = new HDC1010Sensor(channel);
+	}
+	else if (FirstHDC1011TempChannel <= channel && channel < FirstHDC1011TempChannel + Maxi2cTempSensors)
+	{
+		ts = new HdcTemperatureSensor(channel);
+	}
+	else if (FirstHDC1011HumChannel <= channel && channel < FirstHDC1011HumChannel + Maxi2cTempSensors)
+	{
+		ts = new HdcHumiditySensor(channel);
+	}
+#endif
 	if (ts != nullptr)
 	{
 		ts->Init();

@@ -84,7 +84,11 @@ enum class GCodeState : uint8_t
 	doingFirmwareUnRetraction,
 	loadingFilament,
 	unloadingFilament,
-
+#ifdef BCN3D_DEV
+	x_calib_bcn3d, //BCN3D
+	y_calib_bcn3d,
+	z_calib_bcn3d,
+#endif
 	timingSDwrite,
 
 #if HAS_VOLTAGE_MONITOR

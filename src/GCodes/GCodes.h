@@ -240,6 +240,14 @@ public:
 	unsigned int GetWorkplaceCoordinateSystemNumber() const { return currentCoordinateSystem + 1; }
 #endif
 
+#ifdef BCN3D_DEV
+	void Exec_pushboth_b_Edurne();										//BCN3D method for pushing E printer and edurne together back
+	void Exec_pushboth_f_Edurne();										//BCN3D method for pushing E printer and edurne together forward
+	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
+	void Exec_unloadsync_Edurne();										//BCN3D unloadsync
+	void autoresume_Edurne();											//Auto resume
+#endif
+
 protected:
 	DECLARE_OBJECT_MODEL
 
@@ -301,6 +309,16 @@ private:
 	void InitialiseTaps();														// Set up to do the first of a possibly multi-tap probe
 	void SetBedEquationWithProbe(int sParam, const StringRef& reply);			// Probes a series of points and sets the bed equation
 	GCodeResult SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply);		// Either return the probe value, or set its threshold
+
+#ifdef BCN3D_DEV
+	GCodeResult SetPrintZprobe_Zoffset_BCN3D(GCodeBuffer& gb, const StringRef& reply);// Set the current Z Position as the Z-probe offset
+	GCodeResult FindXYOffet_BCN3D(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method to find the XY offet auto
+	GCodeResult SaveOffets_BCN3D(GCodeBuffer& gb, const StringRef& reply, size_t axis, float offsetval);      // BCN3D method to save offsets
+	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);   // BCN3D method to configure SPI for RFID r/w
+	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
+	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
+#endif
+
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
@@ -380,6 +398,14 @@ private:
 	GCodeResult UpdateFirmware(GCodeBuffer& gb, const StringRef &reply);		// Handle M997
 	GCodeResult SendI2c(GCodeBuffer& gb, const StringRef &reply);				// Handle M260
 	GCodeResult ReceiveI2c(GCodeBuffer& gb, const StringRef &reply);			// Handle M261
+#ifdef BCN3D_DEV
+	uint8_t CommI2c_M24C02_read_byte(uint32_t addr, uint8_t bValues);			// Handle M262
+	uint8_t CommI2c_M24C02_write_byte(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.1
+	uint8_t CommI2c_M24C02_erase_page(uint32_t addr, uint8_t bValues, uint8_t value);			// Handle M264 v0.2
+	GCodeResult CommI2C_M24C02_store_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M265
+	GCodeResult CommI2C_M24C02_recover_currentdate(GCodeBuffer& gb, const StringRef &reply);			// Handle M266
+	GCodeResult CommI2C_M24C02_write_page(GCodeBuffer& gb, const StringRef &reply);		// Handle M263
+#endif
 	GCodeResult SimulateFile(GCodeBuffer& gb, const StringRef &reply, const StringRef& file, bool updateFile);	// Handle M37 to simulate a whole file
 	GCodeResult ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply, uint32_t newSimulationMode);		// Handle M37 to change the simulation mode
 
@@ -600,6 +626,13 @@ private:
 	float laserMaxPower;
 	bool laserPowerSticky;						// true if G1 S parameters are remembered across G1 commands
 
+#ifdef BCN3D_DEV
+	// BCN3D XY Calibration Alejandro Garcia 20/02/2019
+	int xyz_Bcn3dCalib_Samples_Count = 0;						// Must count 4
+	float xyz_Bcn3dCalib_SaveMotorStepPos[4][MaxAxes]; 	// Save 2 coordinates
+	bool xyz_Bcn3dCalib_Save = false;
+#endif
+
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
 	uint32_t heaterFaultTime;					// when the heater fault occurred
@@ -621,6 +654,11 @@ private:
 	bool cancelWait;							// Set true to cancel waiting
 	bool displayNoToolWarning;					// True if we need to display a 'no tool selected' warning
 	bool m501SeenInConfigFile;					// true if M501 was executed form config.g
+
+#ifdef BCN3D_DEV
+	bool isChangingFilament;
+#endif
+
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
 
 	// Standard macro filenames
@@ -641,6 +679,13 @@ private:
 	static constexpr const char* RESUME_AFTER_POWER_FAIL_G = "resurrect.g";
 	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
+	#ifdef BCN3D_DEV
+	static constexpr const char* EDURNE_LOAD_G  = "loadroutine.g";
+	static constexpr const char* EDURNE_UNLOAD_G = "unloadroutine.g";
+	static constexpr const char* X_BCN3D_CALIB_G = "x-bcn3d-calib.g";
+	static constexpr const char* Y_BCN3D_CALIB_G = "y-bcn3d-calib.g";
+	static constexpr const char* RESUME_AUTO_G = "autoresume.g";
+	#endif
 #if HAS_SMART_DRIVERS
 	static constexpr const char* REHOME_G = "rehome.g";
 #endif

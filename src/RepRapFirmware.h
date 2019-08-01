@@ -92,7 +92,12 @@ class GCodeQueue;
 class FilamentMonitor;
 class RandomProbePointSet;
 class Logger;
-
+#ifdef BCN3D_DEV
+class SpoolRDIF_Reader;
+class SpoolSupplier;
+class HdcSensorHardwareInterface;
+class FilamentHandler;
+#endif
 #if SUPPORT_IOBITS
 class PortControl;
 #endif

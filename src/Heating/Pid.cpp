@@ -246,12 +246,20 @@ void PID::Spin()
 			// Get the target temperature and the error
 			const float targetTemperature = (active) ? activeTemperature : standbyTemperature;
 			const float error = targetTemperature - temperature;
-
+#ifdef BCN3D_DEV
+			if((reprap.GetHeat().IsChamberHeater(heater) && reprap.GetHeat().GetSlaveChamberHeater(heater) != heater) || reprap.GetHeat().GetSlaveChamberHeater(heater))gotDerivative = false;
+#endif
 			// Do the heating checks
 			switch(mode)
 			{
 			case HeaterMode::heating:
 				{
+#ifdef BCN3D_DEV
+					if(reprap.GetHeat().IsChamberHeater(heater)){
+						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120.0);
+						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+					}
+#endif
 					if (error <= TEMPERATURE_CLOSE_ENOUGH)
 					{
 						mode = HeaterMode::stable;
@@ -269,7 +277,8 @@ void PID::Spin()
 								SetHeater(0.0);					// do this here just to be sure
 								mode = HeaterMode::fault;
 								reprap.GetGCodes().HandleHeaterFault(heater);
-								platform.MessageF(ErrorMessage, "Heating fault on heater %d, temperature rising much more slowly than the expected %.1f" DEGREE_SYMBOL "C/sec\n",
+								platform.MessageF(ErrorMessage,
+											"Heating fault on heater %d, temperature rising much more slowly than the expected %.1f" DEGREE_SYMBOL "C/sec\n",
 											heater, (double)expectedRate);
 								reprap.FlagTemperatureFault(heater);
 							}
@@ -287,35 +296,62 @@ void PID::Spin()
 				break;
 
 			case HeaterMode::stable:
-				if (fabsf(error) > maxTempExcursion && temperature > MaxAmbientTemperature)
-				{
-					++heatingFaultCount;
-					if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
-					{
-						SetHeater(0.0);					// do this here just to be sure
-						mode = HeaterMode::fault;
-						reprap.GetGCodes().HandleHeaterFault(heater);
-						platform.MessageF(ErrorMessage, "Heating fault on heater %d, temperature excursion exceeded %.1f" DEGREE_SYMBOL "C\n",
-											heater, (double)maxTempExcursion);
+
+
+					#ifdef BCN3D_DEV
+					if(reprap.GetHeat().IsChamberHeater(heater)){
+						if((temperature - targetTemperature) > 0.2){
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0.0);
+							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+						}else if((temperature - targetTemperature) < -0.2){
+							reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 120.0);
+							reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+						}
 					}
-				}
-				else if (heatingFaultCount != 0)
-				{
-					--heatingFaultCount;
-				}
+					#endif
+					if (fabsf(error) > maxTempExcursion && temperature > MaxAmbientTemperature){
+
+						++heatingFaultCount;
+				   		if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
+
+				   		{
+				   			++heatingFaultCount;
+				   			if (heatingFaultCount * HeatSampleIntervalMillis > maxHeatingFaultTime * SecondsToMillis)
+				  			{
+								SetHeater(0.0);					// do this here just to be sure
+								mode = HeaterMode::fault;
+								reprap.GetGCodes().HandleHeaterFault(heater);
+								platform.MessageF(ErrorMessage, "Heating fault on heater %d, temperature excursion exceeded %.1f" DEGREE_SYMBOL "C\n",
+												heater, (double)maxTempExcursion);
+							}
+						}
+						else if (heatingFaultCount != 0)
+						{
+							--heatingFaultCount;
+						}
+					}
+
 				break;
 
 			case HeaterMode::cooling:
-				if (-error <= TEMPERATURE_CLOSE_ENOUGH && targetTemperature > MaxAmbientTemperature)
 				{
-					// We have cooled to close to the target temperature, so we should now maintain that temperature
-					mode = HeaterMode::stable;
-					heatingFaultCount = 0;
-				}
-				else
-				{
-					// We could check for temperature excessive or not falling here, but without an alarm or a power-off mechanism, there is not much we can do
-					// TODO emergency stop?
+#ifdef BCN3D_DEV
+					if(reprap.GetHeat().IsChamberHeater(heater)){
+						reprap.GetHeat().SetActiveTemperature(reprap.GetHeat().GetSlaveChamberHeater(heater), 0.0);
+						reprap.GetHeat().Activate(reprap.GetHeat().GetSlaveChamberHeater(heater));
+					}
+#endif
+					if (-error <= TEMPERATURE_CLOSE_ENOUGH && targetTemperature > MaxAmbientTemperature)
+					{
+						// We have cooled to close to the target temperature, so we should now maintain that temperature
+						mode = HeaterMode::stable;
+						heatingFaultCount = 0;
+					}
+					else
+					{
+						// We could check for temperature excessive or not falling here, but without an alarm or a power-off mechanism, there is not much we can do
+						// TODO emergency stop?
+					}
 				}
 				break;
 

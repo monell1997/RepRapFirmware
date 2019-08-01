@@ -129,6 +129,8 @@ constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { 28, 50, 51, 52, 24, 97,
 
 #endif
 
+constexpr size_t Maxi2cTempSensors = 4;
+
 // Pin that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = 79;
 
