@@ -14,8 +14,8 @@
 #include "NetworkInterface.h"
 #include "Platform.h"
 
-FtpResponder::FtpResponder(NetworkResponder *n)
-	: UploadingNetworkResponder(n), dataSocket(nullptr), passivePort(0), passivePortOpenTime(0), dataBuf(nullptr), haveFileToMove(false)
+FtpResponder::FtpResponder(NetworkResponder *n) : UploadingNetworkResponder(n), dataSocket(nullptr),
+	passivePort(0),	passivePortOpenTime(0), dataBuf(nullptr), haveFileToMove(false)
 {
 }
 
@@ -36,7 +36,6 @@ bool FtpResponder::Accept(Socket *s, NetworkProtocol protocol)
 
 			outBuf->copy("220 RepRapFirmware FTP server\r\n");
 			Commit(ResponderState::authenticating);
-			haveCompleteLine = false;
 			return true;
 		}
 	}
@@ -55,9 +54,9 @@ bool FtpResponder::Accept(Socket *s, NetworkProtocol protocol)
 }
 
 // This is called to force termination if we implement the specified protocol
-void FtpResponder::Terminate(NetworkProtocol protocol, NetworkInterface *interface)
+void FtpResponder::Terminate(NetworkProtocol protocol)
 {
-	if (responderState != ResponderState::free && (protocol == FtpProtocol || protocol == AnyProtocol) && skt != nullptr && skt->GetInterface() == interface)
+	if (responderState != ResponderState::free && (protocol == FtpProtocol || protocol == AnyProtocol))
 	{
 		ConnectionLost();
 	}
@@ -360,7 +359,7 @@ void FtpResponder::DoUpload()
 		if (!fileBeingUploaded.Write(buffer, len))
 		{
 			uploadError = true;
-			GetPlatform().Message(ErrorMessage, "FTP: could not write upload data\n");
+			GetPlatform().Message(ErrorMessage, "Could not write upload data!\n");
 			CancelUpload();
 
 			responderState = ResponderState::pasvTransferComplete;
@@ -911,17 +910,6 @@ void FtpResponder::CloseDataPort()
 		fileBeingSent->Close();
 		fileBeingSent = nullptr;
 	}
-}
-
-/*static*/ void FtpResponder::InitStatic()
-{
-	// Nothing needed here
-}
-
-// This is called when we are shutting down the network or just this protocol. It may be called even if this protocol isn't enabled.
-/*static*/ void FtpResponder::Disable()
-{
-	// Nothing needed here
 }
 
 #endif

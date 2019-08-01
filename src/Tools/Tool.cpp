@@ -166,38 +166,24 @@ void Tool::Print(const StringRef& reply) const
 		reply.catf("name: %s; ", name);
 	}
 
-	if (driveCount == 0)
+	reply.cat("drives:");
+	char sep = ' ';
+	for (size_t drive = 0; drive < driveCount; drive++)
 	{
-		reply.cat("no drives");
-	}
-	else
-	{
-		reply.cat("drives:");
-		char sep = ' ';
-		for (size_t drive = 0; drive < driveCount; drive++)
-		{
-			reply.catf("%c%d", sep, drives[drive]);
-			sep = ',';
-		}
+		reply.catf("%c%d", sep, drives[drive]);
+		sep = ',';
 	}
 
-	if (heaterCount == 0)
+	reply.cat("; heaters (active/standby temps):");
+	sep = ' ';
+	for (size_t heater = 0; heater < heaterCount; heater++)
 	{
-		reply.cat("; no heaters");
-	}
-	else
-	{
-		reply.cat("; heaters (active/standby temps):");
-		char sep = ' ';
-		for (size_t heater = 0; heater < heaterCount; heater++)
-		{
-			reply.catf("%c%d (%.1f/%.1f)", sep, heaters[heater], (double)activeTemperatures[heater], (double)standbyTemperatures[heater]);
-			sep = ',';
-		}
+		reply.catf("%c%d (%.1f/%.1f)", sep, heaters[heater], (double)activeTemperatures[heater], (double)standbyTemperatures[heater]);
+		sep = ',';
 	}
 
 	reply.cat("; xmap:");
-	char sep = ' ';
+	sep = ' ';
 	for (size_t xi = 0; xi < MaxAxes; ++xi)
 	{
 		if ((xMapping & (1u << xi)) != 0)
@@ -385,7 +371,7 @@ void Tool::DefineMix(const float m[])
 }
 
 // Write the tool's settings to file returning true if successful
-bool Tool::WriteSettings(FileStore *f, bool isCurrent) const
+bool Tool::WriteSettings(FileStore *f) const
 {
 	char bufSpace[50];
 	StringRef buf(bufSpace, ARRAY_SIZE(bufSpace));
@@ -414,8 +400,8 @@ bool Tool::WriteSettings(FileStore *f, bool isCurrent) const
 
 	if (ok && state != ToolState::off)
 	{
-		// Select tool. Don't run tool change files unless it is the current tool, and in that case don't run the tfree file.
-		buf.printf("T%d P%u\n", myNumber, (isCurrent) ? 6 : 0);
+		// Select tool
+		buf.printf("T%d P0\n", myNumber);
 		ok = f->Write(buf.c_str());
 	}
 
@@ -518,6 +504,7 @@ void Tool::IterateHeaters(std::function<void(int)> f) const
 	}
 }
 
+
 // Return true if this tool uses the specified heater
 bool Tool::UsesHeater(int8_t heater) const
 {
@@ -530,5 +517,6 @@ bool Tool::UsesHeater(int8_t heater) const
 	}
 	return false;
 }
+
 
 // End

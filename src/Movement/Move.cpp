@@ -66,16 +66,10 @@ DEFINE_GET_OBJECT_MODEL_TABLE(Move)
 
 #endif
 
-Move::Move()
-	: active(false),
-	  drcEnabled(false),											// disable dynamic ringing cancellation
-	  maxPrintingAcceleration(10000.0), maxTravelAcceleration(10000.0),
-	  drcPeriod(0.025),												// 40Hz
-	  drcMinimumAcceleration(10.0),
-	  jerkPolicy(0)
+Move::Move() : active(false)
 {
 	// Kinematics must be set up here because GCodes::Init asks the kinematics for the assumed initial position
-	kinematics = Kinematics::Create(KinematicsType::cartesian);		// default to Cartesian
+	kinematics = Kinematics::Create(KinematicsType::cartesian);			// default to Cartesian
 	mainDDARing.Init1(DdaRingLength);
 	DriveMovement::InitialAllocate(NumDms);
 }
@@ -83,6 +77,11 @@ Move::Move()
 void Move::Init()
 {
 	mainDDARing.Init2();
+
+	maxPrintingAcceleration = maxTravelAcceleration = 10000.0;
+	drcEnabled = false;											// disable dynamic ringing cancellation
+	drcMinimumAcceleration = 10.0;
+	drcPeriod = 50.0;
 
 	// Clear the transforms
 	SetIdentityTransform();
@@ -291,32 +290,27 @@ void Move::Diagnostics(MessageType mtype)
 #endif
 
 	// Show the current probe position heights and type of bed compensation in use
-	String<StringLength40> bedCompString;
+	p.Message(mtype, "Bed compensation in use: ");
 	if (usingMesh)
 	{
-		bedCompString.copy("mesh");
+		p.Message(mtype, "mesh\n");
 	}
 	else if (probePoints.GetNumBedCompensationPoints() != 0)
 	{
-		bedCompString.printf("%d point", probePoints.GetNumBedCompensationPoints());
+		p.MessageF(mtype, "%d point\n", probePoints.GetNumBedCompensationPoints());
 	}
 	else
 	{
-		bedCompString.copy("none");
+		p.Message(mtype, "none\n");
 	}
-	p.MessageF(mtype, "Bed compensation in use: %s, comp offset %.3f\n", bedCompString.c_str(), (double)zShift);
 
-	// Only print the probe point heights if we are using old-style compensation
-	if (!usingMesh && probePoints.GetNumBedCompensationPoints() != 0)
+	p.Message(mtype, "Bed probe heights:");
+	// To keep the response short so that it doesn't get truncated when sending it via HTTP, we only show the first 5 bed probe points
+	for (size_t i = 0; i < 5; ++i)
 	{
-		// To keep the response short so that it doesn't get truncated when sending it via HTTP, we only show the first 5 bed probe points
-		bedCompString.Clear();
-		for (size_t i = 0; i < 5; ++i)
-		{
-			bedCompString.catf(" %.3f", (double)probePoints.GetZHeight(i));
-		}
-		p.MessageF(mtype, "Bed probe heights:%s\n", bedCompString.c_str());
+		p.MessageF(mtype, " %.3f", (double)probePoints.GetZHeight(i));
 	}
+	p.Message(mtype, "\n");
 
 #if DDA_LOG_PROBE_CHANGES
 	// Temporary code to print Z probe trigger positions
@@ -758,7 +752,7 @@ void Move::SetXYBedProbePoint(size_t index, float x, float y)
 {
 	if (index >= MaxProbePoints)
 	{
-		reprap.GetPlatform().Message(ErrorMessage, "Z probe point index out of range\n");
+		reprap.GetPlatform().Message(ErrorMessage, "Z probe point index out of range.\n");
 	}
 	else
 	{
@@ -770,7 +764,7 @@ void Move::SetZBedProbePoint(size_t index, float z, bool wasXyCorrected, bool wa
 {
 	if (index >= MaxProbePoints)
 	{
-		reprap.GetPlatform().Message(ErrorMessage, "Z probe point Z index out of range\n");
+		reprap.GetPlatform().Message(ErrorMessage, "Z probe point Z index out of range.\n");
 	}
 	else
 	{

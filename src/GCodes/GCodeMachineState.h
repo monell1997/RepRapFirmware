@@ -21,10 +21,6 @@ enum class GCodeState : uint8_t
 
 	probingToolOffset,
 
-	findCenterOfCavityMin,
-	findCenterOfCavityR,
-	findCenterOfCavityMax,
-
 	homing1,
 	homing2,
 
@@ -54,8 +50,8 @@ enum class GCodeState : uint8_t
 	flashing1,
 	flashing2,
 
-	stoppingWithHeatersOff,
-	stoppingWithHeatersOn,
+	stopping,
+	sleeping,
 
 	// These next 9 must be contiguous
 	gridProbing1,
@@ -86,7 +82,11 @@ enum class GCodeState : uint8_t
 	unloadingFilament,
 
 	timingSDwrite,
-
+#ifdef BCN3D_DEV
+	x_calib_bcn3d, //BCN3D
+	y_calib_bcn3d,
+	z_calib_bcn3d,
+#endif
 #if HAS_VOLTAGE_MONITOR
 	powerFailPausing1
 #endif
@@ -125,6 +125,8 @@ public:
 
 	static GCodeMachineState *Allocate()
 	post(!result.IsLive(); result.state == GCodeState::normal);
+
+	bool UsingMachineCoordinates() const { return g53Active || runningSystemMacro; }
 
 	// Copy values that may have been altered by config.g into this state record
 	void CopyStateFrom(const GCodeMachineState& other)

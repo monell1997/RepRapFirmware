@@ -81,7 +81,7 @@ bool PulsedFilamentMonitor::Configure(GCodeBuffer& gb, const StringRef& reply, b
 	}
 	else
 	{
-		reply.printf("Pulse-type filament monitor on endstop input %u, %s, sensitivity %.3fmm/pulse, allowed movement %ld%% to %ld%%, check every %.1fmm, ",
+		reply.printf("Pulse-type filament monitor on endstop input %u, %s, sensitivity %.2fmm/pulse, allowed movement %ld%% to %ld%%, check every %.1fmm, ",
 						GetEndstopNumber(),
 						(comparisonEnabled) ? "enabled" : "disabled",
 						(double)mmPerPulse,
@@ -123,16 +123,8 @@ bool PulsedFilamentMonitor::Interrupt()
 	{
 		++samplesReceived;
 	}
-
-	// Most pulsed filament monitors have low resolution, but at least one user has a high-resolution one.
-	// So don't automatically try to sync on every interrupt.
-	const uint32_t now = millis();
-	if (now - lastMeasurementTime >= 50)
-	{
-		lastMeasurementTime = millis();
-		return true;
-	}
-	return false;
+	lastMeasurementTime = millis();
+	return true;
 }
 
 // Call the following regularly to keep the status up to date

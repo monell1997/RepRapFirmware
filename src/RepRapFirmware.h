@@ -40,8 +40,6 @@ typedef uint16_t PwmFrequency;		// type used to represent a PWM frequency. 0 som
 #include "General/SafeStrtod.h"
 #include "General/SafeVsnprintf.h"
 #include "General/StringRef.h"
-#include "General/StringFunctions.h"
-#include "General/BitMap.h"
 
 // Module numbers and names, used for diagnostics and debug
 // All of these including noModule must be <= 15 because we 'or' the module number into the software reset code
@@ -63,8 +61,12 @@ enum Module : uint8_t
 	moduleFilamentSensors = 13,
 	moduleWiFi = 14,
 	moduleDisplay = 15,
-	numModules = 16,				// make this one greater than the last module number
-	noModule = 16
+	moduleSpoolSupplier = 16,
+	moduleHdcSensorhi = 17,
+	moduleTagReader = 18,
+	moduleFilamentHandler = 19,
+	numModules = 20,				// make this one greater than the last module number
+	noModule = 20
 };
 
 extern const char * const moduleName[];
@@ -92,7 +94,12 @@ class GCodeQueue;
 class FilamentMonitor;
 class RandomProbePointSet;
 class Logger;
-
+#ifdef BCN3D_DEV
+class SpoolRDIF_Reader;
+class SpoolSupplier;
+class HdcSensorHardwareInterface;
+class FilamentHandler;
+#endif
 #if SUPPORT_IOBITS
 class PortControl;
 #endif
@@ -109,7 +116,7 @@ typedef double floatc_t;					// type of matrix element used for calibration
 typedef float floatc_t;						// type of matrix element used for calibration
 #endif
 
-typedef uint16_t AxesBitmap;				// Type of a bitmap representing a set of axes
+typedef uint32_t AxesBitmap;				// Type of a bitmap representing a set of axes
 typedef uint32_t DriversBitmap;				// Type of a bitmap representing a set of driver numbers
 typedef uint32_t FansBitmap;				// Type of a bitmap representing a set of fan numbers
 typedef uint16_t Pwm_t;						// Type of a PWM value when we don't want to use floats
@@ -166,6 +173,14 @@ inline void delay(uint32_t ms)
 
 #endif
 
+bool StringEndsWithIgnoreCase(const char* string, const char* ending);
+bool StringStartsWith(const char* string, const char* starting);
+bool StringStartsWithIgnoreCase(const char* string, const char* starting);
+bool StringEqualsIgnoreCase(const char* s1, const char* s2);
+int StringContains(const char* string, const char* match);
+void SafeStrncpy(char *dst, const char *src, size_t length) pre(length != 0);
+void SafeStrncat(char *dst, const char *src, size_t length) pre(length != 0);
+
 double HideNan(float val);
 
 void ListDrivers(const StringRef& str, DriversBitmap drivers);
@@ -180,8 +195,8 @@ void ListDrivers(const StringRef& str, DriversBitmap drivers);
 
 // From section 3.12.7 of http://infocenter.arm.com/help/topic/com.arm.doc.dui0553b/DUI0553.pdf:
 // When you write to BASEPRI_MAX, the instruction writes to BASEPRI only if either:
-// ï¿½ Rn is non-zero and the current BASEPRI value is 0
-// ï¿½ Rn is non-zero and less than the current BASEPRI value
+// • Rn is non-zero and the current BASEPRI value is 0
+// • Rn is non-zero and less than the current BASEPRI value
 __attribute__( ( always_inline ) ) __STATIC_INLINE void __set_BASEPRI_MAX(uint32_t value)
 {
   __ASM volatile ("MSR basepri_max, %0" : : "r" (value) : "memory");
@@ -250,6 +265,54 @@ private:
 	bool running;
 };
 
+// Helper functions to work on bitmaps of various lengths.
+// The primary purpose of these is to allow us to switch between 16, 32 and 64-bit bitmaps.
+
+// Convert an unsigned integer to a bit in a bitmap
+template<typename BitmapType> inline constexpr BitmapType MakeBitmap(unsigned int n)
+{
+	return (BitmapType)1u << n;
+}
+
+// Make a bitmap with the lowest n bits set
+template<typename BitmapType> inline constexpr BitmapType LowestNBits(unsigned int n)
+{
+	return ((BitmapType)1u << n) - 1;
+}
+
+// Check if a particular bit is set in a bitmap
+template<typename BitmapType> inline constexpr bool IsBitSet(BitmapType b, unsigned int n)
+{
+	return (b & ((BitmapType)1u << n)) != 0;
+}
+
+// Set a bit in a bitmap
+template<typename BitmapType> inline void SetBit(BitmapType &b, unsigned int n)
+{
+	b |= ((BitmapType)1u << n);
+}
+
+// Clear a bit in a bitmap
+template<typename BitmapType> inline void ClearBit(BitmapType &b, unsigned int n)
+{
+	b &= ~((BitmapType)1u << n);
+}
+
+// Convert an array of longs to a bit map with overflow checking
+template<typename BitmapType> BitmapType UnsignedArrayToBitMap(const uint32_t *arr, size_t numEntries)
+{
+	BitmapType res = 0;
+	for (size_t i = 0; i < numEntries; ++i)
+	{
+		const uint32_t f = arr[i];
+		if (f < sizeof(BitmapType) * CHAR_BIT)
+		{
+			SetBit(res, f);
+		}
+	}
+	return res;
+}
+
 // Convert a PWM that is possibly in the old style 0..255 to be in the range 0.0..1.0
 float ConvertOldStylePwm(float v);
 
@@ -291,6 +354,7 @@ namespace TaskPriority
 	static constexpr int DhtPriority = 2;
 	static constexpr int TmcPriority = 2;
 	static constexpr int AinPriority = 2;
+	static constexpr int HdcPriority = 2;
 	static constexpr int DueXPriority = 3;
 	static constexpr int LaserPriority = 3;
 	static constexpr int CanSenderPriority = 3;

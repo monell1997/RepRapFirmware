@@ -28,6 +28,10 @@ Licence: GPL
 # include "Sensors/DhtSensor.h"
 #endif
 
+#ifdef BCN3D_DEV
+# include <Heating/Sensors/HdcSensor.h>
+#endif
+
 #ifdef RTOS
 
 # include "Tasks.h"
@@ -51,7 +55,9 @@ Heat::Heat(Platform& p)
 {
 	ARRAY_INIT(bedHeaters, DefaultBedHeaters);
 	ARRAY_INIT(chamberHeaters, DefaultChamberHeaters);
-
+#ifdef BCN3D_DEV
+	ARRAY_INIT(slavechamberHeaters, DefaultChamberHeaters);
+#endif
 	for (size_t index : ARRAY_INDICES(heaterProtections))
 	{
 		heaterProtections[index] = new HeaterProtection(index);
@@ -148,7 +154,10 @@ void Heat::Init()
 	// Initialise static fields of the DHT sensor
 	DhtSensorHardwareInterface::InitStatic();
 #endif
-
+/*#ifdef BCN3D_DEV
+	// Initialise static fields of the HDC sensor
+	HdcSensorHardwareInterface::InitStatic();
+#endif*/
 	extrusionMinTemp = HOT_ENOUGH_TO_EXTRUDE;
 	retractionMinTemp = HOT_ENOUGH_TO_RETRACT;
 	coldExtrude = false;
@@ -193,7 +202,6 @@ void Heat::Task()
 			lastHeaterTuned = heaterBeingTuned;
 			heaterBeingTuned = -1;
 		}
-
 		reprap.KickHeatTaskWatchdog();
 
 		// Delay until it is time again
@@ -320,7 +328,47 @@ bool Heat::IsBedHeater(int8_t heater) const
 	}
 	return false;
 }
-
+#ifdef BCN3D_DEV
+bool Heat::IsSlaveChamberHeater(int8_t heater) const
+{
+	for (int8_t slavechamberHeater : slavechamberHeaters)
+	{
+		if (heater == slavechamberHeater)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+int8_t Heat::GetSlaveChamberHeater(int8_t heater)
+{
+	size_t i = 0;
+	for (int8_t chamberHeater : chamberHeaters)
+	{
+		if (heater == chamberHeater)
+		{
+			return slavechamberHeaters[i];
+		}
+		i++;
+	}
+	return -1;
+}
+void Heat::SetChamberHeater(size_t index, int8_t heater, int8_t slave)
+{
+	const int chamberHeater = chamberHeaters[heater];
+	if (chamberHeater >= 0)
+	{
+		pids[chamberHeater]->SwitchOff();
+	}
+	chamberHeaters[index] = heater;
+	const int slavechamberHeater = slavechamberHeaters[slave];
+	if (slavechamberHeater >= 0)
+	{
+		pids[slavechamberHeater]->SwitchOff();
+	}
+	slavechamberHeaters[index] = slave;
+}
+#else
 void Heat::SetChamberHeater(size_t index, int8_t heater)
 {
 	const int chamberHeater = chamberHeaters[index];
@@ -330,6 +378,7 @@ void Heat::SetChamberHeater(size_t index, int8_t heater)
 	}
 	chamberHeaters[index] = heater;
 }
+#endif
 
 bool Heat::IsChamberHeater(int8_t heater) const
 {

@@ -426,7 +426,7 @@ bool DDA::InitStandardMove(DDARing& ring, GCodes::RawMove &nextMove, bool doMoto
 	}
 
 	// 5. Compute the maximum acceleration available
-	float normalisedDirectionVector[MaxTotalDrivers];			// used to hold a unit-length vector in the direction of motion
+	float normalisedDirectionVector[MaxTotalDrivers];		// used to hold a unit-length vector in the direction of motion
 	memcpy(normalisedDirectionVector, directionVector, sizeof(normalisedDirectionVector));
 	Absolute(normalisedDirectionVector, MaxTotalDrivers);
 	acceleration = beforePrepare.maxAcceleration = VectorBoxIntersection(normalisedDirectionVector, accelerations, MaxTotalDrivers);
@@ -473,18 +473,18 @@ bool DDA::InitStandardMove(DDARing& ring, GCodes::RawMove &nextMove, bool doMoto
 	// 7. Calculate the provisional accelerate and decelerate distances and the top speed
 	endSpeed = 0.0;							// until the next move asks us to adjust it
 
-	if (prev->state == provisional && (move.GetJerkPolicy() != 0 || (flags.isPrintingMove == prev->flags.isPrintingMove && flags.xyMoving == prev->flags.xyMoving)))
+	if (prev->state != provisional || flags.isPrintingMove != prev->flags.isPrintingMove || flags.xyMoving != prev->flags.xyMoving)
+	{
+		// There is no previous move that we can adjust, so this move must start at zero speed.
+		startSpeed = 0.0;
+	}
+	else
 	{
 		// Try to meld this move to the previous move to avoid stop/start
 		// Assuming that this move ends with zero speed, calculate the maximum possible starting speed: u^2 = v^2 - 2as
 		prev->beforePrepare.targetNextSpeed = min<float>(sqrtf(deceleration * totalDistance * 2.0), requestedSpeed);
 		DoLookahead(ring, prev);
 		startSpeed = prev->endSpeed;
-	}
-	else
-	{
-		// There is no previous move that we can adjust, so start at zero speed.
-		startSpeed = 0.0;
 	}
 
 	RecalculateMove(ring);
@@ -1159,7 +1159,7 @@ void DDA::Prepare(uint8_t simMode, float extrusionPending[])
 		// Handle all drivers
 		const size_t numTotalAxes = reprap.GetGCodes().GetTotalAxes();
 		Platform& platform = reprap.GetPlatform();
-		AxesBitmap additionalAxisMotorsToEnable = 0, axisMotorsEnabled = 0;
+		AxesBitmap additionalMotorsToEnable = 0, motorsEnabled = 0;
 		for (size_t drive = 0; drive < NumDirectDrivers; ++drive)
 		{
 			if (flags.isLeadscrewAdjustmentMove)
@@ -1311,8 +1311,8 @@ void DDA::Prepare(uint8_t simMode, float extrusionPending[])
 						}
 					}
 #endif
-					SetBit(axisMotorsEnabled, drive);
-					additionalAxisMotorsToEnable |= reprap.GetMove().GetKinematics().GetConnectedAxes(drive);
+					SetBit(motorsEnabled, drive);
+					additionalMotorsToEnable |= reprap.GetMove().GetKinematics().GetConnectedAxes(drive);
 				}
 			}
 			else
@@ -1386,12 +1386,12 @@ void DDA::Prepare(uint8_t simMode, float extrusionPending[])
 		}
 
 		// On CoreXY and similar architectures, we also need to enable the motors controlling any connected axes
-		additionalAxisMotorsToEnable &= ~axisMotorsEnabled;
-		for (size_t drive = 0; additionalAxisMotorsToEnable != 0; ++drive)
+		additionalMotorsToEnable &= ~motorsEnabled;
+		for (size_t drive = 0; additionalMotorsToEnable != 0; ++drive)
 		{
-			if (IsBitSet(additionalAxisMotorsToEnable, drive))
+			if (IsBitSet(additionalMotorsToEnable, drive))
 			{
-				ClearBit(additionalAxisMotorsToEnable, drive);
+				ClearBit(additionalMotorsToEnable, drive);
 #if SUPPORT_CAN_EXPANSION
 				const AxisDriversConfig& config = platform.GetAxisDriversConfig(drive);
 				for (size_t i = 0; i < config.numDrivers; ++i)
@@ -1608,9 +1608,8 @@ void DDA::CheckEndstops(Platform& platform)
 	{
 		if (IsBitSet(endStopsToCheck, drive))
 		{
-			const bool esc = (endStopsToCheck & ActiveLowEndstop) == 0;
 			const EndStopHit esh = ((endStopsToCheck & UseSpecialEndstop) != 0 && drive >= numAxes)
-					? ((platform.EndStopInputState(drive) == esc) ? EndStopHit::lowHit : EndStopHit::noStop)
+					? (platform.EndStopInputState(drive) ? EndStopHit::lowHit : EndStopHit::noStop)
 							: platform.Stopped(drive);
 			switch (esh)
 			{
@@ -1642,7 +1641,7 @@ void DDA::CheckEndstops(Platform& platform)
 
 			case EndStopHit::nearStop:
 				// Only reduce homing speed if there are no more axes to be homed. This allows us to home X and Y simultaneously.
-				if (endStopsToCheck == MakeBitmap<EndstopsBitmap>(drive))
+				if (endStopsToCheck == MakeBitmap<AxesBitmap>(drive))
 				{
 					ReduceHomingSpeed();
 				}
