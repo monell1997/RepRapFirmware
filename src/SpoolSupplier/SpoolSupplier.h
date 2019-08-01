@@ -28,51 +28,51 @@ public:
 	SpoolSupplier();
 	void Spin(void);
 
-	uint8_t Get_Spool_Remaining(size_t idex);
-	void Set_Spool_Remaining(size_t idex, uint8_t rem);
-	void Set_Spool_Remaining(size_t idex, const uint8_t * data, const uint32_t numBytes);
+	uint8_t getSpoolRemaining(size_t idex);
+	void setSpoolRemaining(size_t idex, uint8_t rem);
+	void setSpoolRemaining(size_t idex, const uint8_t * data, const uint32_t numBytes);
 
-	float Get_Current_Humidity(size_t idex);
-	void Set_Current_Humidity(size_t idex, float current);
+	float getCurrentHumidity(size_t idex);
+	void setCurrentHumidity(size_t idex, float current);
 
-	float Get_Target_Temperature(size_t idex);
-	void Set_Target_Temperature(size_t idex, float target);
+	float getTargetTemperature(size_t idex);
+	void setTargetTemperature(size_t idex, float target);
 
-	float Get_Current_Temperature(size_t idex);
-	void Update_Current_Temperature(size_t idex, float temp);
+	float getCurrentTemperature(size_t idex);
+	void updateCurrentTemperature(size_t idex, float temp);
 
-	FilamentDictionary Get_Spool_id(size_t idex);
-	void Set_Spool_id(size_t idex, uint32_t id);
-	void Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes);
-	void Set_Spool_FRS(size_t idex, int frs);
+	FilamentDictionary getSpoolID(size_t idex);
+	void setSpoolID(size_t idex, uint32_t id);
+	void setSpoolID(size_t idex, const uint8_t * data, const uint32_t numBytes);
+	void setSpoolFRS(size_t idex, int frs);
 
-	void Set_Master_Status(bool status);
-	bool Get_Master_Status();
+	void setMasterStatus(bool status);
+	bool getMasterStatus();
 
-	void Set_Loaded_flag(size_t idex, uint8_t val);
-	bool Get_Spool_Available(size_t idex);
+	void setLoadedFlag(size_t idex, uint8_t val);
+	bool getSpoolAvailable(size_t idex);
 
-	void Set_Change_Fil_Status(size_t idex, ChangeFilStatus status);
+	void setChangeFilStatus(size_t idex, ChangeFilStatus status);
 
-	void SendtoPrinter(const MessageType type);
+	void sendToPrinter(const MessageType type);
 
-	void PrintJSON(const MessageType type);
-	void PrintStatus(const MessageType type);
+	void printJSON(const MessageType type);
+	void printStatus(const MessageType type);
 
 private:
 
-	float target_temperature[N_Spools];
-	float current_temperature[N_Spools];
-	float current_humidity[N_Spools];
+	float targetTemperature[N_Spools];
+	float currentTemperature[N_Spools];
+	float currentHumidity[N_Spools];
 
 	ChangeFilStatus change_fil_status[N_Spools]; //
 
-	uint8_t spool_remaining[N_Spools];
-	uint8_t spool_loaded[N_Spools];	// bobina cargada? 0 no , 1 si
+	uint8_t spoolRemaining[N_Spools];
+	uint8_t spoolLoaded[N_Spools];	// bobina cargada? 0 no , 1 extr, 2 extr
 
-	FilamentSensorStatus spool_FRS[N_Spools];	//1 no fil , 0 is fil
+	FilamentSensorStatus spoolFRS[N_Spools];	//1 no fil , 0 is fil
 
-	FilamentDictionary spool_id[N_Spools];
+	FilamentDictionary spoolID[N_Spools];
 
 	static Mutex SpoolSupplierMutex;
 

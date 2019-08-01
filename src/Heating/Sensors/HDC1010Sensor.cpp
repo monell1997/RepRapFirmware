@@ -152,7 +152,7 @@ TemperatureError HDC1010Sensor::TryGetTemperature(float& t)
 						}else if(addr-64 == 1){//3
 							index = 3;
 						}
-						reprap.GetSpoolSupplier().Set_Current_Humidity(index,lastHumidity);
+						reprap.GetSpoolSupplier().setCurrentHumidity(index,lastHumidity);
 					}
 
 				}

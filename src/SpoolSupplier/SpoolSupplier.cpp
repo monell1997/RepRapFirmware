@@ -29,30 +29,30 @@ SpoolSupplier::SpoolSupplier() {
 	for(int i = 0; i<N_Spools;i++){
 	// Set Default target temp
 
-		target_temperature[i] = 0;
+		targetTemperature[i] = 0;
 
 	// Set Default a default temp
 
-		current_temperature[i] = Default_temp;
+		currentTemperature[i] = Default_temp;
 
 	// Set Default a default hum
 
-		current_humidity[i] = Default_hum;
+		currentHumidity[i] = Default_hum;
 
 	// Set Default filament remaining
 
-		spool_remaining[i] = 0;
+		spoolRemaining[i] = 0;
 
 	// Set Default filament id
 
-		spool_id[i] = FilamentDictionary::defauld_filament;
+		spoolID[i] = FilamentDictionary::defauld_filament;
 
 	// Set Default FRS value
 
-		spool_FRS[i] = FilamentSensorStatus::ok;
+		spoolFRS[i] = FilamentSensorStatus::ok;
 	// Set Default Spool State
 
-		spool_loaded[i] = 0;
+		spoolLoaded[i] = 0;
 
 	// Set Default Change Fil Status
 
@@ -62,44 +62,44 @@ SpoolSupplier::SpoolSupplier() {
 	online = false;
 	SpoolSupplierMutex.Create("SpoolSupplier");
 }
-uint8_t SpoolSupplier::Get_Spool_Remaining(size_t idex){
-	return spool_remaining[idex];
+uint8_t SpoolSupplier::getSpoolRemaining(size_t idex){
+	return spoolRemaining[idex];
 }
-void SpoolSupplier::Set_Spool_Remaining(size_t idex, uint8_t rem){
-	spool_remaining[idex] = rem;
+void SpoolSupplier::setSpoolRemaining(size_t idex, uint8_t rem){
+	spoolRemaining[idex] = rem;
 }
-void SpoolSupplier::Set_Spool_Remaining(size_t idex, const uint8_t * data, const uint32_t numBytes){
+void SpoolSupplier::setSpoolRemaining(size_t idex, const uint8_t * data, const uint32_t numBytes){
 	uint8_t rem = 0;
 	for(size_t i = 0; i< numBytes; i++){// should be 1
 		rem |= (data[i]<<8*i);
 	}
-	spool_remaining[idex] = rem;
+	spoolRemaining[idex] = rem;
 }
-float SpoolSupplier::Get_Current_Humidity(size_t idex){
-	return current_humidity[idex];
+float SpoolSupplier::getCurrentHumidity(size_t idex){
+	return currentHumidity[idex];
 }
-void SpoolSupplier::Set_Current_Humidity(size_t idex, float current){
-	current_humidity[idex] = current;
+void SpoolSupplier::setCurrentHumidity(size_t idex, float current){
+	currentHumidity[idex] = current;
 }
-float SpoolSupplier::Get_Target_Temperature(size_t idex){
-	return target_temperature[idex];
+float SpoolSupplier::getTargetTemperature(size_t idex){
+	return targetTemperature[idex];
 }
-void SpoolSupplier::Set_Target_Temperature(size_t idex, float target){
-	target_temperature[idex] = target;
+void SpoolSupplier::setTargetTemperature(size_t idex, float target){
+	targetTemperature[idex] = target;
 }
-float SpoolSupplier::Get_Current_Temperature(size_t idex){
-	return current_temperature[idex];
+float SpoolSupplier::getCurrentTemperature(size_t idex){
+	return currentTemperature[idex];
 }
-void SpoolSupplier::Update_Current_Temperature(size_t idex, float temp){ // if the temperature is updated, we assume that Edurne is connected
+void SpoolSupplier::updateCurrentTemperature(size_t idex, float temp){ // if the temperature is updated, we assume that Edurne is connected
 	if(!master)lastTime = millis();
-	current_temperature[idex] = temp;
+	currentTemperature[idex] = temp;
 }
-FilamentDictionary SpoolSupplier::Get_Spool_id(size_t idex){
-	return spool_id[idex];
+FilamentDictionary SpoolSupplier::getSpoolID(size_t idex){
+	return spoolID[idex];
 }
-void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
+void SpoolSupplier::setSpoolID(size_t idex, uint32_t id){//Manually
 	Heat& heat = reprap.GetHeat();
-	if((FilamentDictionary)id != spool_id[idex]){
+	if((FilamentDictionary)id != spoolID[idex]){
 
 		int8_t heater = (NumChamberHeaters > idex) ? heat.GetChamberHeater(idex) : -1;
 
@@ -107,20 +107,20 @@ void SpoolSupplier::Set_Spool_id(size_t idex, uint32_t id){//Manually
 		heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp((FilamentDictionary)id));
 
 	}
-	spool_id[idex] = (FilamentDictionary)id;
+	spoolID[idex] = (FilamentDictionary)id;
 
 }
-void SpoolSupplier::Set_Spool_FRS(size_t idex, int frs){//Manually
-	spool_FRS[idex] = (FilamentSensorStatus)frs;
+void SpoolSupplier::setSpoolFRS(size_t idex, int frs){//Manually
+	spoolFRS[idex] = (FilamentSensorStatus)frs;
 }
-void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32_t numBytes){//Auto from RFID tag, auto heat-up
+void SpoolSupplier::setSpoolID(size_t idex, const uint8_t * data, const uint32_t numBytes){//Auto from RFID tag, auto heat-up
 	uint32_t id = 0;
 	Heat& heat = reprap.GetHeat();
 	for(size_t i = 0; i< numBytes; i++){// should be 4
 		id |= (data[i]<<8*i);
 	}
 
-	if((FilamentDictionary)id != spool_id[idex]){
+	if((FilamentDictionary)id != spoolID[idex]){
 
 		int8_t heater = (NumChamberHeaters > idex) ? heat.GetChamberHeater(idex) : -1;
 
@@ -128,34 +128,34 @@ void SpoolSupplier::Set_Spool_id(size_t idex, const uint8_t * data, const uint32
 		heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp((FilamentDictionary)id));
 
 	}
-	spool_id[idex] = (FilamentDictionary)id;
+	spoolID[idex] = (FilamentDictionary)id;
 
 
 }
-void SpoolSupplier::Set_Master_Status(bool status){//True is edurne, false is a printer
+void SpoolSupplier::setMasterStatus(bool status){//True is edurne, false is a printer
 	master = status;
 }
-bool SpoolSupplier::Get_Master_Status(){//True is edurne, false is a printer
+bool SpoolSupplier::getMasterStatus(){//True is edurne, false is a printer
 	return master;
 }
-void SpoolSupplier::Set_Loaded_flag(size_t idex, uint8_t val){//True is edurne, false is a printer
-	spool_loaded[idex] = val;
+void SpoolSupplier::setLoadedFlag(size_t idex, uint8_t val){//True is edurne, false is a printer
+	spoolLoaded[idex] = val;
 }
-bool SpoolSupplier::Get_Spool_Available(size_t idex){
+bool SpoolSupplier::getSpoolAvailable(size_t idex){
 
-	if(spool_loaded[idex]){
+	if(spoolLoaded[idex]){
 		return 0;				//this spool is in use
 	}
-	if(spool_FRS[idex]!=FilamentSensorStatus::ok){
+	if(spoolFRS[idex]!=FilamentSensorStatus::ok){
 		return 0;				 //this spool isn't ok
 	}
 
 	return 1; // Spool available
 }
-void SpoolSupplier::Set_Change_Fil_Status(size_t idex, ChangeFilStatus status){
+void SpoolSupplier::setChangeFilStatus(size_t idex, ChangeFilStatus status){
 	change_fil_status[idex] = status;
 }
-void SpoolSupplier::SendtoPrinter(const MessageType type){
+void SpoolSupplier::sendToPrinter(const MessageType type){
 	MutexLocker lock(SpoolSupplierMutex);
 
 	if(master){
@@ -175,49 +175,49 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%lu",(uint32_t)spool_id[i]);
+			r->catf("%lu",(uint32_t)spoolID[i]);
 		}
 		r->cat(" R");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%u",spool_remaining[i]);
+			r->catf("%u",spoolRemaining[i]);
 		}
 		r->cat(" H");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%.1f",(double)current_humidity[i]);
+			r->catf("%.1f",(double)currentHumidity[i]);
 		}
 		r->cat(" C");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%.1f",(double)current_temperature[i]);
+			r->catf("%.1f",(double)currentTemperature[i]);
 		}
 		r->cat(" S");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%.1f",(double)target_temperature[i]);
+			r->catf("%.1f",(double)targetTemperature[i]);
 		}
 		r->cat(" F");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%d",(int)spool_FRS[i]);
+			r->catf("%d",(int)spoolFRS[i]);
 		}
 		r->cat(" L");
 		for(i = 0; i<N_Spools;i++){
 
 			if(i >0){r->cat(":");}
 
-			r->catf("%d",(int)spool_loaded[i]);
+			r->catf("%d",(int)spoolLoaded[i]);
 		}
 		r->cat("\n");
 
@@ -230,7 +230,7 @@ void SpoolSupplier::SendtoPrinter(const MessageType type){
 	}
 
 }
-void SpoolSupplier::PrintStatus(const MessageType type){
+void SpoolSupplier::printStatus(const MessageType type){
 
 	MutexLocker lock(SpoolSupplierMutex);
 	OutputBuffer *r;
@@ -248,20 +248,20 @@ void SpoolSupplier::PrintStatus(const MessageType type){
 	for(int i = 0; i<N_Spools;i++){
 		r->catf("Spool %d: -> ", i);
 		r->cat("Material ");
-		r->cat(FilamentDictionaryString(spool_id[i]));
+		r->cat(FilamentDictionaryString(spoolID[i]));
 		r->cat(", ");
-		r->catf("Filament Remaining %u%%, ",spool_remaining[i]);
-		r->catf("Chamber Humidity %.1f%%, ",(double)current_humidity[i]);
-		r->catf("Chamber Temperature %.1f/%.1f ",(double)current_temperature[i],(double)target_temperature[i]);
+		r->catf("Filament Remaining %u%%, ",spoolRemaining[i]);
+		r->catf("Chamber Humidity %.1f%%, ",(double)currentHumidity[i]);
+		r->catf("Chamber Temperature %.1f/%.1f ",(double)currentTemperature[i],(double)targetTemperature[i]);
 		//r->catf("FRS %d: \n", (int)spool_FRS[i]);
-		r->catf("Loaded: %d ,",(int)spool_loaded[i]);
+		r->catf("Loaded: %d ,",(int)spoolLoaded[i]);
 		r->catf("FRS: ");
-		r->cat(FilamentMonitor::GetErrorMessage(spool_FRS[i]));
+		r->cat(FilamentMonitor::GetErrorMessage(spoolFRS[i]));
 		r->catf(" \n");
 	}
 	reprap.GetPlatform().Message(type, r);
 }
-void SpoolSupplier::PrintJSON(const MessageType type){
+void SpoolSupplier::printJSON(const MessageType type){
 
 	MutexLocker lock(SpoolSupplierMutex);
 	OutputBuffer *r;
@@ -281,12 +281,12 @@ void SpoolSupplier::PrintJSON(const MessageType type){
 	}
 	for(int i = 0; i<N_Spools;i++){
 
-		r->catf("[\"sl_id_%d\":\"%lu\"",i, (uint32_t)spool_id[i]);
-		r->catf(",\"sl_rem\":\"%u\"",spool_remaining[i]);
-		r->catf(",\"c_h\":\"%.1f\"",(double)current_humidity[i]);
-		r->catf(",\"c_t\":\"%.1f\"",(double)current_temperature[i]);
-		r->catf(",\"t_t\":\"%.1f\"",(double)target_temperature[i]);
-		r->catf(",\"frs\":\"%d\"]",(int)spool_FRS[i]);
+		r->catf("[\"sl_id_%d\":\"%lu\"",i, (uint32_t)spoolID[i]);
+		r->catf(",\"sl_rem\":\"%u\"",spoolRemaining[i]);
+		r->catf(",\"c_h\":\"%.1f\"",(double)currentHumidity[i]);
+		r->catf(",\"c_t\":\"%.1f\"",(double)currentTemperature[i]);
+		r->catf(",\"t_t\":\"%.1f\"",(double)targetTemperature[i]);
+		r->catf(",\"frs\":\"%d\"]",(int)spoolFRS[i]);
 	}
 	r->cat("}\n");
 	reprap.GetPlatform().Message(type, r);
@@ -306,24 +306,24 @@ void SpoolSupplier::Spin(void){
 
 				int8_t heater = (NumChamberHeaters > i) ? heat.GetChamberHeater(i) : -1;
 
-				target_temperature[i]  = heat.GetActiveTemperature(heater);
-				current_temperature[i] = heat.GetTemperature(heater);
+				targetTemperature[i]  = heat.GetActiveTemperature(heater);
+				currentTemperature[i] = heat.GetTemperature(heater);
 				//FilamentMonitor::InitStatic();
-				spool_FRS[i] = FilamentMonitor::GetFilamentMonitorState(i);
+				spoolFRS[i] = FilamentMonitor::GetFilamentMonitorState(i);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_temperature[i],false);
 				//reprap.GetHdcSensorHardwareInterface().GetTemperatureOrHumidity(i==0?0:3,current_humidity[i],true);
 
-				if(spool_FRS[i] != FilamentSensorStatus::ok){
+				if(spoolFRS[i] != FilamentSensorStatus::ok){
 					heat.SetActiveTemperature(heater, 0.0);// apagar
 				}else{
 					heat.Activate(heater);
-					heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp(spool_id[i]));
+					heat.SetActiveTemperature(heater, FilamentDictionaryTargetTemp(spoolID[i]));
 				}
 
 
 				}
 			}
-			SendtoPrinter(ImmediateDirectUart0_duet2Message);
+			sendToPrinter(ImmediateDirectUart0_duet2Message);
 			//PrintJSON(Uart0_duet2);
 			lastTime = millis();
 		}
@@ -340,17 +340,17 @@ void SpoolSupplier::Spin(void){
 			const Tool * const currTool = reprap.GetCurrentTool();
 			int toolnumber = currTool->Number();
 
-			if(toolnumber == 0)// tool LEFT
+			if(toolnumber == 0 || toolnumber == 1)// tool LEFT o RIGHT // solo single extruder
 			{
 				for(size_t i = 0; i<N_Spools;i++){
 
-						FilamentSensorStatus fstat = spool_FRS[i];
+						FilamentSensorStatus fstat = spoolFRS[i];
 
 						if (fstat != FilamentSensorStatus::ok)
 						{
 
 							//
-							if(spool_loaded[i] == 1){
+							if(spoolLoaded[i] == (toolnumber+1)){ //tool 0 is 1 , tool1 is 2
 								if(change_fil_status[i] == ChangeFilStatus::ok){
 									static bool flag_enter = true;
 									if(gCodes.IsReallyPrinting() && flag_enter){
@@ -374,9 +374,9 @@ void SpoolSupplier::Spin(void){
 										size_t j = 0;
 										while(j < N_Spools){
 
-											if(spool_id[i] == spool_id[j]){
+											if(spoolID[i] == spoolID[j] && spoolLoaded[j] != 1 && spoolLoaded[j] != 2){// buscando Spool libre
 
-												if(spool_FRS[j] == FilamentSensorStatus::ok){
+												if(spoolFRS[j] == FilamentSensorStatus::ok){
 
 													rq[0] = 55;//load
 													rq[1] = (uint8_t)j;// spool
@@ -403,10 +403,7 @@ void SpoolSupplier::Spin(void){
 
 
 				}
-			}else if(toolnumber == 1){// not ready
-
 			}
-
 
 		}
 

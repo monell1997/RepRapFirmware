@@ -4565,22 +4565,22 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 #ifdef BCN3D_DEV
 case 1010:
 	//platform.MessageF(GenericMessage, "Request SpoolSupplier Status\n");
-	reprap.GetSpoolSupplier().SendtoPrinter(HttpMessage);
+	reprap.GetSpoolSupplier().sendToPrinter(HttpMessage);
 	break;
 case 1011:
-	reprap.GetSpoolSupplier().SendtoPrinter(ImmediateDirectUart0_duet2Message);
+	reprap.GetSpoolSupplier().sendToPrinter(ImmediateDirectUart0_duet2Message);
 	break;
 case 1012:
 	platform.MessageF(Uart0_duet2, "M1061 B21992 R100 C27.2 S0.0\n");
 	break;
 case 1040:
-	reprap.GetSpoolSupplier().PrintJSON(HttpMessage);
+	reprap.GetSpoolSupplier().printJSON(HttpMessage);
 	break;
 case 1041:
-	reprap.GetSpoolSupplier().PrintJSON(ImmediateDirectUart0_duet2Message);
+	reprap.GetSpoolSupplier().printJSON(ImmediateDirectUart0_duet2Message);
 	break;
 case 1042:
-	reprap.GetSpoolSupplier().PrintStatus(HttpMessage);
+	reprap.GetSpoolSupplier().printStatus(HttpMessage);
 	break;
 
 case 1060://enable Edurne MODE
@@ -4590,7 +4590,7 @@ case 1060://enable Edurne MODE
 		gb.TryGetBValue('S', value, seen);
 		if (seen)
 		{
-			reprap.GetSpoolSupplier().Set_Master_Status(value);
+			reprap.GetSpoolSupplier().setMasterStatus(value);
 		}else{
 			result = GCodeResult::badOrMissingParameter;
 		}
@@ -4607,7 +4607,7 @@ case 1061://Set edurne parameters
 
 			gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Spool_id(i,(uint32_t)uvalues[i]);
+				reprap.GetSpoolSupplier().setSpoolID(i,(uint32_t)uvalues[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4617,7 +4617,7 @@ case 1061://Set edurne parameters
 
 			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Temp
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Update_Current_Temperature(i,temps_val[i]);
+				reprap.GetSpoolSupplier().updateCurrentTemperature(i,temps_val[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4627,7 +4627,7 @@ case 1061://Set edurne parameters
 
 			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Current Humidity
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Current_Humidity(i,temps_val[i]);
+				reprap.GetSpoolSupplier().setCurrentHumidity(i,temps_val[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4637,7 +4637,7 @@ case 1061://Set edurne parameters
 
 			gb.GetFloatArray(temps_val, NumtoRecv, false);		//Current Target
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Target_Temperature(i,temps_val[i]);
+				reprap.GetSpoolSupplier().setTargetTemperature(i,temps_val[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4647,7 +4647,7 @@ case 1061://Set edurne parameters
 
 			gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Spool_Remaining(i,(uint8_t)values[i]);
+				reprap.GetSpoolSupplier().setSpoolRemaining(i,(uint8_t)values[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4657,7 +4657,7 @@ case 1061://Set edurne parameters
 
 			gb.GetIntArray(values, NumtoRecv, false);		//TODO allow hex values
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Spool_FRS(i,(int)values[i]);
+				reprap.GetSpoolSupplier().setSpoolFRS(i,(int)values[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4667,7 +4667,7 @@ case 1061://Set edurne parameters
 
 			gb.GetUnsignedArray(uvalues, NumtoRecv, false);		// Spool id
 			for(size_t i = 0; i<NumtoRecv;i++){
-				reprap.GetSpoolSupplier().Set_Loaded_flag(i,(uint8_t)uvalues[i]);
+				reprap.GetSpoolSupplier().setLoadedFlag(i,(uint8_t)uvalues[i]);
 			}
 		}else{
 			result = GCodeResult::badOrMissingParameter;
@@ -4749,7 +4749,7 @@ case 1090://un/load request
 
 		if(unload == 1){// load is requested
 			//check availability
-			if(!reprap.GetSpoolSupplier().Get_Spool_Available((size_t) spool)){
+			if(!reprap.GetSpoolSupplier().getSpoolAvailable((size_t) spool)){
 				platform.MessageF(Uart0_duet2, "M1093 S3\n"); // Printer ack Filament not available
 			}
 
@@ -4793,13 +4793,20 @@ case 1094:// not busy
 case 1095:// Confirm Loading
 	{
 		int spool = 0;
+		int tool = 0;
 		if(gb.Seen('S')){
 			spool = (int)gb.GetIValue();
 		}else{
 			result = GCodeResult::badOrMissingParameter;
 			break;
 		}
-		reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 1);
+		if(gb.Seen('P')){// tool de destino
+			tool = (int)gb.GetIValue();
+		}else{
+			result = GCodeResult::badOrMissingParameter;
+			break;
+		}
+		reprap.GetSpoolSupplier().setLoadedFlag((size_t)spool, (uint8_t)tool);
 		reprap.GetPlatform().MessageF(HttpMessage, "Recv load confirmation\n");
 	}
 	break;
@@ -4813,7 +4820,7 @@ case 1096:// Confirm Unloading
 			break;
 		}
 		reprap.GetPlatform().MessageF(HttpMessage, "Recv unload confirmation\n");
-		reprap.GetSpoolSupplier().Set_Loaded_flag((size_t)spool, 0);
+		reprap.GetSpoolSupplier().setLoadedFlag((size_t)spool, 0);
 	}
 	break;
 case 1097:// Send Ack
