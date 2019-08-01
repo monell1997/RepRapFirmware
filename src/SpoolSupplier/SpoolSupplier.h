@@ -12,7 +12,7 @@
 #define SRC_SPOOLSUPPLIER_SPOOLSUPPLIER_H_
 #ifdef BCN3D_DEV
 
-#define N_Spools		 	3
+#define N_Spools		 	4
 #define Default_temp	 	-273.15
 #define Default_hum	 		0
 

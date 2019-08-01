@@ -111,9 +111,9 @@ constexpr int8_t DefaultE0Heater = 0;					// Index of the default first extruder
 #elif SAM4E || SAME70
 
 constexpr size_t NumBedHeaters = 4;
-constexpr size_t NumChamberHeaters = 2;
+constexpr size_t NumChamberHeaters = 4;
 constexpr int8_t DefaultBedHeaters[NumBedHeaters] = { 0, -1, -1, -1 };
-constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1 };
+constexpr int8_t DefaultChamberHeaters[NumChamberHeaters] = { -1, -1, -1, -1};
 
 constexpr int8_t DefaultE0Heater = 1;					// Index of the default first extruder heater, used only for the legacy status response
 
