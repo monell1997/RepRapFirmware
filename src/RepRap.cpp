@@ -14,6 +14,10 @@
 #include "Tasks.h"
 #include "Version.h"
 
+#ifdef BCN3D_DEV
+#include "Tools/FilamentHandler.h"
+#endif
+
 #ifdef DUET_NG
 # include "DueXn.h"
 #endif
@@ -186,7 +190,11 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	gCodes = new GCodes(*platform);
 	move = new Move();
 	heat = new Heat(*platform);
-
+#ifdef BCN3D_DEV
+	tagreaderwriter = new SpoolRDIF_Reader();
+	spoolsupplier = new SpoolSupplier();
+	filamenthandler = new FilamentHandler();
+#endif
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
 #endif
@@ -232,6 +240,9 @@ void RepRap::Init()
 #endif
 	printMonitor->Init();
 	FilamentMonitor::InitStatic();
+#ifdef BCN3D_DEV
+	hdcsensorhi->InitStatic();
+#endif
 #if SUPPORT_12864_LCD
 	display->Init();
 #endif
@@ -412,6 +423,24 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleFilamentSensors;
 	FilamentMonitor::Spin();
+
+#ifdef BCN3D_DEV
+	ticksInSpinState = 0;
+	spinningModule = moduleSpoolSupplier;
+	spoolsupplier->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = moduleHdcSensorhi;
+	hdcsensorhi->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = moduleTagReader;
+	tagreaderwriter->Spin();
+
+	ticksInSpinState = 0;
+	spinningModule = moduleFilamentHandler;
+	filamenthandler->Spin();
+#endif
 
 #if SUPPORT_12864_LCD
 	ticksInSpinState = 0;

@@ -63,8 +63,12 @@ enum Module : uint8_t
 	moduleFilamentSensors = 13,
 	moduleWiFi = 14,
 	moduleDisplay = 15,
-	numModules = 16,				// make this one greater than the last module number
-	noModule = 16
+	moduleSpoolSupplier = 16,
+	moduleHdcSensorhi = 17,
+	moduleTagReader = 18,
+	moduleFilamentHandler = 19,
+	numModules = 20,				// make this one greater than the last module number
+	noModule = 20
 };
 
 extern const char * const moduleName[];
@@ -296,6 +300,7 @@ namespace TaskPriority
 	static constexpr int DhtPriority = 2;
 	static constexpr int TmcPriority = 2;
 	static constexpr int AinPriority = 2;
+	static constexpr int HdcPriority = 2;
 	static constexpr int DueXPriority = 3;
 	static constexpr int LaserPriority = 3;
 	static constexpr int CanSenderPriority = 3;

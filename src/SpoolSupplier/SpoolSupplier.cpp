@@ -292,6 +292,7 @@ void SpoolSupplier::printJSON(const MessageType type){
 	reprap.GetPlatform().Message(type, r);
 }
 void SpoolSupplier::Spin(void){
+
 	MutexLocker lock(SpoolSupplierMutex);
 	GCodes& gCodes = reprap.GetGCodes();
 	if(master){
