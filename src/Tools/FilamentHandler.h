@@ -36,7 +36,7 @@ enum class unload_state
 		edurne_wait,				// wait for edurne response
 		edurne_accept,				// edurne is ready to unload the filament requested
 		printer_start,				// printer start unload a fix distance until the filament is out of the extruder
-		printer_sendtoedurne_end,	// printer notify to edurne that she can continue pushing
+		printer_sendtoedurne_end,	// printer notify to edurne that it can continue pushing
 		edurnewaitingfrs, 		 	// printer detects that the filament arrives to the frs
 		edurneprinterpushboth,
 		edurnetorest				// edurne has done her job, then go to rest, printer continues purging

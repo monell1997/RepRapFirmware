@@ -246,6 +246,7 @@ public:
 	void Exec_pushunloadalone_Edurne();										//BCN3D method for pushing E printer alone
 	void Exec_unloadsync_Edurne();										//BCN3D unloadsync
 	void autoresume_Edurne();											//Auto resume
+	/*void Langlang_home();*/
 #endif
 
 protected:
@@ -317,6 +318,7 @@ private:
 	GCodeResult ConfiguteRFIDReader(GCodeBuffer& gb, const StringRef& reply);   // BCN3D method to configure SPI for RFID r/w
 	GCodeResult Prep_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method prepare the load routine Edurne
 	GCodeResult Exec_FilamentLoad_Edurne(GCodeBuffer& gb, const StringRef& reply);     // BCN3D method execute the load routine Edurne
+	/*GCodeResult Langlang_prep(GCodeBuffer& gb, const StringRef& reply);	 */
 #endif
 
 	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply);	// Deal with a G10

@@ -257,6 +257,29 @@ void GCodes::autoresume_Edurne() // Alejandro Garcia 19/06/2019
 	DoFileMacro(*queuedGCode, RESUME_AUTO_G, true, 98); // running a system macro
 
 }
+//implementing langlang
+/*void GCodes::Langlang_home()
+{
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("langhome.g");
+	DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98);
+
+}
+void GCodes::Langlang_prep()
+{
+	int spool = 0;
+	if(gb.Seen('S')){
+		spool = (int)gb.GetIValue();
+	}else{
+		result = GCodeResult::badOrMissingParameter;
+		break;
+	}
+	String<ShortScratchStringLength> scratchString;
+	scratchString.printf("langmove.g");
+	for (int i=0; i<spool; i++){
+		DoFileMacro(*queuedGCode, scratchString.c_str(), true, 98);
+	}
+}*/
 #endif
 // Deal with G60
 GCodeResult GCodes::SavePosition(GCodeBuffer& gb, const StringRef& reply)
